@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>AltoGO · Productos a domicilio</title>
+  <meta name="description" content="AltoGO: catálogo multi-comercio de productos. Elige tu comercio, arma tu pedido y envíalo por WhatsApp." />
+  <meta name="theme-color" content="#FFFFFF" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="AltoGO" />
+  <meta property="og:title" content="AltoGO · Productos a domicilio" />
+  <meta property="og:description" content="Elige tu comercio, arma tu pedido y coordínalo por WhatsApp." />
+  <meta property="og:locale" content="es_AR" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="altogo-supabase-url" content="__SUPABASE_URL__" />
+  <meta name="altogo-supabase-anon-key" content="__SUPABASE_ANON_KEY__" />
+  <link rel="icon" href="/public/ALTO.png" />
+
+  <link rel="stylesheet" href="/assets/css/app.css" />
+</head>
+<body class="min-h-screen bg-white font-sans text-ink antialiased selection:bg-lime selection:text-ink">
+  <!-- Contenedor principal: cada vista se renderiza aquí -->
+  <div id="app"></div>
+
+  <!-- Barra flotante + carrito lateral (se pinta aparte para no perder el foco del buscador) -->
+  <div id="cart-root"></div>
+
+  <!-- Modales (login de producto, edición, confirmaciones...) -->
+  <div id="modal-root"></div>
+
+  <!-- Notificaciones -->
+  <div id="toast-root" aria-live="polite" class="pointer-events-none fixed inset-x-0 bottom-24 z-[95] flex flex-col items-center gap-2 px-4 sm:bottom-8"></div>
+
+  <noscript>
+    <div style="padding:24px;font-family:sans-serif">AltoGO necesita JavaScript activado para funcionar.</div>
+  </noscript>
+
+  <!-- Orden de carga importante: config → utilidades → datos → auth → carrito → vistas → app -->
+  <script src="/assets/js/config.js"></script>
+  <script src="/assets/js/backend.js"></script>
+  <script src="/assets/js/utils.js"></script>
+  <script src="/assets/js/data.js"></script>
+  <script src="/assets/js/auth.js"></script>
+  <script src="/assets/js/cart.js"></script>
+  <script src="/assets/js/views-storefront.js"></script>
+  <script src="/assets/js/views-login.js"></script>
+  <script src="/assets/js/views-admin.js"></script>
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>
