@@ -93,33 +93,6 @@ npm run build
 
 La compilación **falla a propósito** si faltan las variables de Supabase, para no publicar una demo por error.
 
-### Rutas
-
-| Vista | URL |
-|---|---|
-| Inicio | `/` |
-| Catálogo | `#/negocio/almacen-la-esquina` o `?negocio=almacen-la-esquina` |
-| Acceso | `/ingreso`, `?login` o `#/ingreso` |
-| Super admin | `/admin` o `#/admin` |
-
-El acceso no está enlazado desde el sitio público.
-
----
-
-## 4. Cómo funciona la seguridad
-
-- **No hay acceso directo a las tablas.** `anon` y `authenticated` no tienen permisos sobre ellas; toda operación pasa por funciones RPC `SECURITY DEFINER`.
-- **Contraseñas:** hash bcrypt con `pgcrypto`. Nunca se devuelven al cliente.
-- **Sesiones:** token aleatorio de 32 bytes; en la base solo se guarda su hash SHA-256. Vence a los 30 días y se revoca al cerrar sesión o cambiar la contraseña.
-- **Roles:** cada RPC verifica el token y el rol. Un dueño solo puede modificar su propio comercio y sus productos.
-- **Pedidos:** se validan en el servidor el comercio abierto, los productos, precios y stock. El stock numérico se descuenta en una transacción y el pedido queda guardado antes de abrir WhatsApp.
-- **Login:** límite de 5 intentos fallidos por cuenta, con bloqueo temporal de 15 minutos.
-- **Frontend:** CSP, `X-Frame-Options`, `nosniff`, HSTS, política de referencia y permisos restringidos desde `vercel.json`. Tailwind y las fuentes se sirven desde el propio dominio; no se usa Tailwind CDN.
-- **Validación doble:** el formulario valida para dar feedback y PostgreSQL vuelve a validar todos los datos.
-
-La analítica es aproximada: las visitas y clics son eventos públicos y pueden inflarse. No se usan para facturación.
-
----
 
 ## 5. Funcionalidades
 
@@ -139,49 +112,6 @@ La analítica es aproximada: las visitas y clics son eventos públicos y pueden 
 - Crear comercios con su cuenta de acceso.
 - Visibilidad, apertura, orden, edición de accesos y eliminación.
 - Analíticas globales y por comercio.
-
----
-
-## 6. Modelo de datos
-
-```text
-businesses   id, slug, name, whatsapp, shipping_cost, logo, status, open,
-             tagline, visits, whatsapp_clicks, sort_order, created_at
-products     id, business_id, name, category, price, image,
-             stock_kind ('qty'|'bool'), stock_qty, stock_available, sort_order
-staff        id, username, password_hash, role ('super'|'owner'),
-             business_id, name, active, failed_attempts, locked_until
-sessions     token_hash, staff_id, created_at, expires_at
-orders       id, code, business_id, customer_name, notes, payment,
-             subtotal, shipping, total, status, created_at
-order_items  id, order_id, product_id, name, unit_price, qty
-platform_stats  id=1, visits, whatsapp_clicks
-```
-
-La app carga una foto de los datos al iniciar y refresca después de cada mutación. Los reads son síncronos en memoria; las escrituras son asíncronas y validadas por el servidor.
-
----
-
-## 7. Estructura
-
-```text
-index.html
-vite.config.js                 Build + inyección de configuración pública
-tailwind.config.js             Tema visual
-vercel.json                    Build, rewrites, caché y cabeceras
-assets/css/app.css             Tailwind + estilos propios + fuentes locales
-assets/js/backend.js           Cliente RPC de Supabase y token de sesión
-assets/js/auth.js              Login/logout y restauración de sesión
-assets/js/data.js              Snapshot, Store y mutaciones demo/remotas
-assets/js/cart.js              Carrito, checkout y creación del pedido
-assets/js/views-*.js           Vistas públicas y paneles
-supabase/migrations/           Esquema y API RPC de producción
-supabase/seed.sql              Datos demo opcionales
-```
-
----
-
-## 8. Límites actuales
 
 - Las imágenes se cargan por URL; no hay subida de archivos a Supabase Storage.
 - No hay pasarela de pago: el cobro se coordina por WhatsApp (efectivo o transferencia).
