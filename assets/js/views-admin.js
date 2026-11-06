@@ -656,6 +656,7 @@ const AdminView = (() => {
 const OwnerUI = (() => {
   let analyticsRequest = 0;
   const inputCls = 'w-full rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-moss/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+  const zoneInputCls = 'rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-moss/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
   const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-moss';
   const ghostBtn = 'inline-flex items-center justify-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-[#F4F5F7]';
   const primaryBtn = 'inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700';
@@ -714,9 +715,9 @@ const OwnerUI = (() => {
   const zoneRow = (zone = {}) => `
     <div data-zone-row class="flex items-center gap-2">
       <input name="zoneName" value="${Utils.esc(zone.name || '')}" placeholder="Ej. Centro" maxlength="60"
-        class="${inputCls} min-w-0 flex-1" aria-label="Nombre de la zona" />
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Nombre de la zona" />
       <input name="zonePrice" type="number" min="0" step="1" value="${zone.price ?? ''}" placeholder="Precio"
-        class="${inputCls} w-24 shrink-0" aria-label="Precio de la zona" />
+        class="${zoneInputCls} w-24 shrink-0 text-right" aria-label="Precio de la zona" />
       <button type="button" data-action="zone-remove" aria-label="Quitar zona"
         class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
         ${Utils.icon('trash', 'h-4 w-4')}
