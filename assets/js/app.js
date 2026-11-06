@@ -2,48 +2,67 @@
    AltoGO · Router + arranque de la aplicación
    --------------------------------------------------------------------------
    Rutas soportadas:
-     /                o  #/                     → inicio
-     ?negocio=slug     o  #/negocio/slug          → catálogo
-     /ingreso          o  #/ingreso   (?login)    → acceso oculto
-     /admin            o  #/admin                 → panel super admin
+     /                     → inicio
+     /negocio/slug         → catálogo
+     /ingreso  (/login)    → acceso oculto
+     /admin                → panel super admin
 
-   La navegación interna usa hash (#/…) para funcionar también en hosting
-   estático (GitHub Pages, file://). Al entrar directamente por /ingreso o
-   ?negocio= también se resuelve, y en Vercel se reescribe a index.html.
+   Los enlaces viejos con hash (#/negocio/slug, #/ingreso) o query
+   (?negocio=slug, ?login) se redirigen una vez a la URL limpia. Vercel
+   reescribe estas rutas a index.html para que funcionen al recargar.
    ========================================================================== */
 
 const App = (() => {
   let lastTrackedKey = null;
   let lastViewKey = null;
+  let routeRequest = 0;
 
   /* ---------- Parsing de ruta ---------- */
 
+  const decodeSegment = (part) => {
+    try { return decodeURIComponent(part); } catch { return part; }
+  };
+
+  const normalizeLegacyUrl = () => {
+    const url = new URL(window.location.href);
+    let target = null;
+
+    if (url.hash) {
+      const hash = url.hash.replace(/^#\/?/, '').split('?')[0];
+      const segments = hash.split('/').filter(Boolean).map(decodeSegment);
+      if (segments[0] === 'negocio' && segments[1]) {
+        target = `/negocio/${encodeURIComponent(segments[1])}`;
+      } else if (segments[0] === 'ingreso' || segments[0] === 'login') {
+        target = '/ingreso';
+      } else if (segments[0] === 'admin') {
+        target = '/admin';
+      } else {
+        target = '/';
+      }
+    } else if (url.search) {
+      const params = url.searchParams;
+      if (params.get('negocio')) {
+        target = `/negocio/${encodeURIComponent(params.get('negocio'))}`;
+      } else if (params.has('login')) {
+        target = '/ingreso';
+      } else if (params.get('panel') === 'admin' || params.get('admin') === '1') {
+        target = '/admin';
+      }
+    }
+
+    if (target) {
+      try { window.history.replaceState(null, '', target); } catch { /* noop */ }
+    }
+  };
+
   const parseRoute = () => {
     const url = new URL(window.location.href);
-    const hash = url.hash.replace(/^#\/?/, '');
-    const segments = hash.split('/').filter(Boolean).map((part) => {
-      try { return decodeURIComponent(part); } catch { return part; }
-    });
-    const params = url.searchParams;
+    const segments = url.pathname.split('/').filter(Boolean).map(decodeSegment);
 
-    // 1) Hash (navegación interna y enlaces compartidos modernos)
+    // Rutas limpias.
     if (segments[0] === 'negocio' && segments[1]) return { name: 'negocio', slug: segments[1] };
     if (segments[0] === 'ingreso' || segments[0] === 'login') return { name: 'login' };
     if (segments[0] === 'admin') return { name: 'admin' };
-
-    // Si ya hay un hash (aunque sea #/), manda sobre query/pathname. Evita que
-    // un ?negocio= inicial siga ganando después de navegar a otra vista.
-    if (url.hash.startsWith('#')) return { name: 'home' };
-
-    // 2) Query params (compatibilidad / enlaces directos)
-    if (params.get('negocio')) return { name: 'negocio', slug: params.get('negocio') };
-    if (params.has('login')) return { name: 'login' };
-    if (params.get('panel') === 'admin' || params.get('admin') === '1') return { name: 'admin' };
-
-    // 3) Pathname (Vercel rewrite / servidor con fallback)
-    const path = url.pathname.replace(/\/+$/, '');
-    if (/\/(ingreso|login)$/.test(path)) return { name: 'login' };
-    if (/\/admin$/.test(path)) return { name: 'admin' };
 
     return { name: 'home' };
   };
@@ -51,15 +70,16 @@ const App = (() => {
   /* ---------- Navegación ---------- */
 
   const go = (path) => {
-    const clean = String(path || '').replace(/^#\/?/, '').replace(/\/+$/, '');
-    const target = `${window.location.pathname}#/${clean}`;
+    const clean = String(path || '').replace(/^#\/?/, '').split('?')[0].replace(/\/+$/, '');
+    const segments = clean.split('/').filter(Boolean).map((part) => encodeURIComponent(decodeSegment(part)));
+    const target = segments.length ? `/${segments.join('/')}` : '/';
     try {
       window.history.pushState(null, '', target);
     } catch {
-      window.location.hash = `#/${clean}`;
+      window.location.assign(target);
       return;
     }
-    render();
+    renderRoute();
     window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
   };
 
@@ -89,19 +109,91 @@ const App = (() => {
 
   /* ---------- Render ---------- */
 
+  const routeView = (route, session) => {
+    if (route.name === 'login') return null;
+    if (route.name === 'admin') {
+      return session && session.role === 'super'
+        ? { scope: 'admin', slug: null }
+        : null;
+    }
+    if (route.name === 'negocio') return { scope: 'business', slug: route.slug };
+    return { scope: 'home', slug: null };
+  };
+
+  const renderLoading = (route) => {
+    const app = document.getElementById('app');
+    if (!app) return;
+    const label = route.name === 'admin'
+      ? 'Cargando panel…'
+      : route.name === 'negocio'
+        ? 'Cargando comercio…'
+        : 'Cargando comercios…';
+    app.innerHTML = `
+      <div class="grid min-h-[100dvh] place-items-center bg-white px-5">
+        <div class="text-center">
+          <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
+          <div class="mx-auto mt-5 h-8 w-8 animate-spin rounded-full border-2 border-ink/10 border-t-ink"></div>
+          <p class="mt-4 text-xs font-medium text-moss">${label}</p>
+        </div>
+      </div>`;
+  };
+
+  const renderRouteError = (error) => {
+    const app = document.getElementById('app');
+    if (!app) return;
+    const retry = window.location.pathname || '/';
+    app.innerHTML = `
+      <div class="grid min-h-[100dvh] place-items-center bg-white px-5">
+        <div class="w-full max-w-md rounded-3xl border border-ink/10 bg-white p-7 text-center shadow-card">
+          <p class="text-[10px] font-semibold uppercase tracking-wider text-rose-600">No se pudo cargar</p>
+          <h1 class="mt-2 font-display text-2xl font-semibold">Esta pantalla no está disponible</h1>
+          <p class="mt-2 text-sm leading-relaxed text-moss">${Utils.esc(error.message || 'Revisa la conexión e intenta de nuevo.')}</p>
+          <a href="${Utils.esc(retry)}" class="mt-5 flex w-full items-center justify-center rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white">Reintentar</a>
+          <a href="/" class="mt-3 block text-xs font-medium text-moss hover:text-ink">Volver al inicio</a>
+        </div>
+      </div>`;
+  };
+
+  // Carga los datos de la ruta y después pinta. render() solo repinta con lo
+  // que ya está en memoria para no volver a pedir todo en cada interacción.
+  const renderRoute = async () => {
+    const route = parseRoute();
+    const session = Auth.current();
+
+    const viewKey = `${route.name}:${route.slug || ''}`;
+    if (viewKey !== lastViewKey) {
+      lastViewKey = viewKey;
+      Utils.closeModal();
+    }
+
+    const view = routeView(route, session);
+    if (!Backend.enabled || !view) {
+      render();
+      return;
+    }
+
+    const request = ++routeRequest;
+    renderLoading(route);
+
+    try {
+      await Store.loadView(view.scope, view.slug);
+    } catch (error) {
+      if (request !== routeRequest) return;
+      console.error('[AltoGO] No se pudo cargar la pantalla.', error);
+      renderRouteError(error);
+      return;
+    }
+
+    if (request !== routeRequest) return;
+    render();
+  };
+
   const render = () => {
     const app = document.getElementById('app');
     if (!app) return;
 
     const route = parseRoute();
     const session = Auth.current();
-
-    // Limpia query params heredados en cuanto la navegación pasa a usar hash.
-    if (window.location.search && window.location.hash) {
-      try {
-        window.history.replaceState(null, '', window.location.pathname + window.location.hash);
-      } catch { /* noop */ }
-    }
 
     // Al cambiar de vista se descartan modales abiertos de la vista anterior.
     const viewKey = `${route.name}:${route.slug || ''}`;
@@ -152,7 +244,7 @@ const App = (() => {
   };
 
   const scheduleRender = () => {
-    render();
+    renderRoute();
     window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
@@ -161,12 +253,16 @@ const App = (() => {
   const init = async () => {
     Events.bind();
 
-    window.addEventListener('hashchange', scheduleRender);
+    window.addEventListener('hashchange', () => {
+      normalizeLegacyUrl();
+      scheduleRender();
+    });
     window.addEventListener('popstate', scheduleRender);
 
     try {
+      normalizeLegacyUrl();
       await Auth.init();
-      render();
+      await renderRoute();
     } catch (error) {
       console.error('[AltoGO] No se pudo iniciar la aplicación.', error);
       const app = document.getElementById('app');
@@ -175,7 +271,7 @@ const App = (() => {
           <div class="grid min-h-[100dvh] place-items-center bg-ink px-5 text-white">
             <div class="w-full max-w-md rounded-3xl bg-white p-7 text-ink shadow-2xl">
               <p class="text-[10px] font-semibold uppercase tracking-wider text-rose-600">Servicio no disponible</p>
-              <h1 class="mt-2 font-display text-2xl font-semibold">No pudimos cargar el catálogo</h1>
+              <h1 class="mt-2 font-display text-2xl font-semibold">No pudimos cargar la aplicación</h1>
               <p class="mt-2 text-sm leading-relaxed text-moss">${Utils.esc(error.message || 'Revisa la conexión e intenta de nuevo.')}</p>
               <a href="/" class="mt-5 flex w-full items-center justify-center rounded-xl bg-ink px-4 py-3 text-sm font-semibold text-white">Reintentar</a>
             </div>

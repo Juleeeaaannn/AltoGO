@@ -22,12 +22,11 @@ const ALTOGO = {
   currency: 'ARS',
   locale: 'es-AR',
 
-  /* Rutas "internas" (hash). También aceptamos /ingreso y ?negocio= al entrar
-     directamente, para que funcione tanto en local como en Vercel. */
+  /* Rutas internas limpias. Los enlaces viejos con hash o query se redirigen. */
   routes: {
-    home: '#/',
-    login: '#/ingreso',
-    admin: '#/admin'
+    home: '/',
+    login: '/ingreso',
+    admin: '/admin'
   },
 
   /* Categorías de productos: emoji + degradado para el arte generado */

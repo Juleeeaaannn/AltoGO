@@ -19,6 +19,7 @@ create table if not exists public.businesses (
   slug text not null unique check (slug ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$' and char_length(slug) between 2 and 60),
   name text not null check (char_length(name) between 2 and 80),
   whatsapp text not null check (whatsapp ~ '^[0-9]{8,15}$'),
+  shipping_mode text not null default 'fixed' check (shipping_mode in ('fixed', 'zones', 'whatsapp')),
   shipping_cost integer not null default 0 check (shipping_cost between 0 and 1000000),
   logo text not null default '' check (logo = '' or logo ~* '^https?://'),
   status text not null default 'activo' check (status in ('activo', 'oculto')),
@@ -69,6 +70,15 @@ create table if not exists public.sessions (
   expires_at timestamptz not null
 );
 
+create table if not exists public.shipping_zones (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references public.businesses(id) on delete cascade,
+  name text not null check (char_length(name) between 2 and 60),
+  price integer not null check (price between 0 and 1000000),
+  sort_order integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.orders (
   id uuid primary key default gen_random_uuid(),
   code text not null unique,
@@ -79,6 +89,8 @@ create table if not exists public.orders (
   subtotal integer not null default 0,
   shipping integer not null default 0,
   total integer not null default 0,
+  shipping_mode text not null default 'fixed' check (shipping_mode in ('fixed', 'zones', 'whatsapp')),
+  shipping_zone text not null default '' check (char_length(shipping_zone) <= 60),
   status text not null default 'whatsapp' check (status in ('whatsapp', 'confirmado', 'entregado', 'cancelado')),
   created_at timestamptz not null default now()
 );
@@ -104,6 +116,7 @@ create index if not exists products_business_idx on public.products (business_id
 create index if not exists staff_business_idx on public.staff (business_id);
 create index if not exists sessions_staff_idx on public.sessions (staff_id);
 create index if not exists sessions_expiry_idx on public.sessions (expires_at);
+create index if not exists shipping_zones_business_idx on public.shipping_zones (business_id, sort_order);
 create index if not exists orders_business_idx on public.orders (business_id, created_at desc);
 create index if not exists order_items_order_idx on public.order_items (order_id);
 
@@ -112,6 +125,7 @@ alter table public.businesses enable row level security;
 alter table public.products enable row level security;
 alter table public.staff enable row level security;
 alter table public.sessions enable row level security;
+alter table public.shipping_zones enable row level security;
 alter table public.orders enable row level security;
 alter table public.order_items enable row level security;
 alter table public.platform_stats enable row level security;
@@ -120,6 +134,7 @@ revoke all on table public.businesses from anon, authenticated;
 revoke all on table public.products from anon, authenticated;
 revoke all on table public.staff from anon, authenticated;
 revoke all on table public.sessions from anon, authenticated;
+revoke all on table public.shipping_zones from anon, authenticated;
 revoke all on table public.orders from anon, authenticated;
 revoke all on table public.order_items from anon, authenticated;
 revoke all on table public.platform_stats from anon, authenticated;
@@ -308,7 +323,17 @@ begin
     'slug', b.slug,
     'name', b.name,
     'whatsapp', b.whatsapp,
+    'shippingMode', b.shipping_mode,
     'shippingCost', b.shipping_cost,
+    'shippingZones', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', z.id,
+        'name', z.name,
+        'price', z.price
+      ) order by z.sort_order, z.created_at)
+      from public.shipping_zones z
+      where z.business_id = b.id
+    ), '[]'::jsonb),
     'logo', b.logo,
     'status', b.status,
     'open', b.open,
@@ -419,11 +444,15 @@ $$;
 -- Dueño de comercio
 -- ---------------------------------------------------------------------------
 
+drop function if exists public.api_owner_save_business(text, text, text, integer, text, boolean, text);
+
 create or replace function public.api_owner_save_business(
   p_token text,
   p_name text,
   p_whatsapp text,
+  p_shipping_mode text,
   p_shipping_cost integer,
+  p_shipping_zones jsonb,
   p_logo text,
   p_open boolean,
   p_tagline text
@@ -436,6 +465,11 @@ as $$
 declare
   v_staff public.staff;
   v_business public.businesses;
+  v_zone record;
+  v_zone_order integer := 0;
+  v_zone_names text[] := '{}';
+  v_zone_name text;
+  v_zones jsonb;
 begin
   v_staff := public._require_owner(p_token);
 
@@ -445,8 +479,20 @@ begin
   if coalesce(p_whatsapp, '') !~ '^[0-9]{8,15}$' then
     raise exception 'El WhatsApp debe tener entre 8 y 15 dígitos.' using errcode = '22023';
   end if;
+  if coalesce(p_shipping_mode, '') not in ('fixed', 'zones', 'whatsapp') then
+    raise exception 'Elige una forma válida de cobrar el delivery.' using errcode = '22023';
+  end if;
   if p_shipping_cost is null or p_shipping_cost < 0 or p_shipping_cost > 1000000 then
     raise exception 'El precio del delivery no es válido.' using errcode = '22023';
+  end if;
+  if p_shipping_zones is null or jsonb_typeof(p_shipping_zones) <> 'array' then
+    p_shipping_zones := '[]'::jsonb;
+  end if;
+  if jsonb_array_length(p_shipping_zones) > 20 then
+    raise exception 'Puedes configurar hasta 20 zonas de delivery.' using errcode = '22023';
+  end if;
+  if p_shipping_mode = 'zones' and jsonb_array_length(p_shipping_zones) = 0 then
+    raise exception 'Agrega al menos una zona de delivery.' using errcode = '22023';
   end if;
   if coalesce(p_logo, '') <> '' and p_logo !~* '^https?://' then
     raise exception 'La URL del logo no es válida.' using errcode = '22023';
@@ -458,6 +504,7 @@ begin
   update public.businesses
   set name = trim(p_name),
       whatsapp = p_whatsapp,
+      shipping_mode = p_shipping_mode,
       shipping_cost = p_shipping_cost,
       logo = coalesce(trim(p_logo), ''),
       open = coalesce(p_open, true),
@@ -467,12 +514,45 @@ begin
 
   update public.staff set name = v_business.name where id = v_staff.id;
 
+  delete from public.shipping_zones where business_id = v_business.id;
+
+  for v_zone in
+    select * from jsonb_to_recordset(p_shipping_zones) as x(name text, price integer)
+  loop
+    v_zone_name := trim(coalesce(v_zone.name, ''));
+    if char_length(v_zone_name) < 2 or char_length(v_zone_name) > 60 then
+      raise exception 'El nombre de cada zona debe tener entre 2 y 60 caracteres.' using errcode = '22023';
+    end if;
+    if v_zone.price is null or v_zone.price < 0 or v_zone.price > 1000000 then
+      raise exception 'El precio de la zona “%” no es válido.', v_zone_name using errcode = '22023';
+    end if;
+    if lower(v_zone_name) = any(v_zone_names) then
+      raise exception 'La zona “%” está repetida.', v_zone_name using errcode = '22023';
+    end if;
+    v_zone_names := array_append(v_zone_names, lower(v_zone_name));
+
+    insert into public.shipping_zones (business_id, name, price, sort_order)
+    values (v_business.id, v_zone_name, v_zone.price, v_zone_order);
+    v_zone_order := v_zone_order + 1;
+  end loop;
+
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', z.id,
+    'name', z.name,
+    'price', z.price
+  ) order by z.sort_order, z.created_at), '[]'::jsonb)
+  into v_zones
+  from public.shipping_zones z
+  where z.business_id = v_business.id;
+
   return jsonb_build_object(
     'id', v_business.id,
     'slug', v_business.slug,
     'name', v_business.name,
     'whatsapp', v_business.whatsapp,
+    'shippingMode', v_business.shipping_mode,
     'shippingCost', v_business.shipping_cost,
+    'shippingZones', v_zones,
     'logo', v_business.logo,
     'status', v_business.status,
     'open', v_business.open,
@@ -966,12 +1046,15 @@ $$;
 -- Pedidos públicos
 -- ---------------------------------------------------------------------------
 
+drop function if exists public.api_create_order(text, text, text, text, jsonb);
+
 create or replace function public.api_create_order(
   p_business_slug text,
   p_customer_name text,
   p_notes text,
   p_payment text,
-  p_items jsonb
+  p_items jsonb,
+  p_shipping_zone uuid
 )
 returns jsonb
 language plpgsql
@@ -988,6 +1071,8 @@ declare
   v_shipping integer;
   v_total integer;
   v_count integer := 0;
+  v_zone public.shipping_zones;
+  v_zone_name text := '';
 begin
   select * into v_business
   from public.businesses
@@ -1019,14 +1104,33 @@ begin
     raise exception 'El pedido tiene demasiados productos.' using errcode = '22023';
   end if;
 
-  v_shipping := v_business.shipping_cost;
+  if v_business.shipping_mode = 'zones' then
+    if p_shipping_zone is null then
+      raise exception 'Elige tu zona de entrega.' using errcode = '22023';
+    end if;
+    select * into v_zone
+    from public.shipping_zones
+    where id = p_shipping_zone and business_id = v_business.id;
+    if v_zone.id is null then
+      raise exception 'La zona de entrega elegida ya no está disponible.' using errcode = 'P0002';
+    end if;
+    v_shipping := v_zone.price;
+    v_zone_name := v_zone.name;
+  elsif v_business.shipping_mode = 'whatsapp' then
+    v_shipping := 0;
+  else
+    v_shipping := v_business.shipping_cost;
+  end if;
+
   v_code := 'AG-' || upper(substr(replace(gen_random_uuid()::text, '-', ''), 1, 8));
 
   insert into public.orders (
-    code, business_id, customer_name, notes, payment, subtotal, shipping, total
+    code, business_id, customer_name, notes, payment, subtotal, shipping, total,
+    shipping_mode, shipping_zone
   ) values (
     v_code, v_business.id, trim(p_customer_name), trim(coalesce(p_notes, '')),
-    p_payment, 0, v_shipping, v_shipping
+    p_payment, 0, v_shipping, v_shipping,
+    v_business.shipping_mode, v_zone_name
   ) returning id into v_order_id;
 
   for v_item in
@@ -1088,6 +1192,8 @@ begin
     'orderCode', v_code,
     'subtotal', v_subtotal,
     'shipping', v_shipping,
+    'shippingMode', v_business.shipping_mode,
+    'shippingZone', v_zone_name,
     'total', v_total
   );
 end;
@@ -1102,7 +1208,7 @@ revoke all on function public.api_logout(text) from public;
 revoke all on function public.api_snapshot(text) from public;
 revoke all on function public.api_track_visit(text) from public;
 revoke all on function public.api_track_whatsapp(text) from public;
-revoke all on function public.api_owner_save_business(text, text, text, integer, text, boolean, text) from public;
+revoke all on function public.api_owner_save_business(text, text, text, text, integer, jsonb, text, boolean, text) from public;
 revoke all on function public.api_owner_rename_category(text, text, text) from public;
 revoke all on function public.api_owner_create_product(text, text, text, integer, text, jsonb) from public;
 revoke all on function public.api_owner_update_product(text, uuid, text, text, integer, text, jsonb) from public;
@@ -1114,14 +1220,14 @@ revoke all on function public.api_super_create_business(text, text, text, text, 
 revoke all on function public.api_super_update_business(text, uuid, text, text, text, integer, text, text, text) from public;
 revoke all on function public.api_super_update_access(text, uuid, text, text) from public;
 revoke all on function public.api_super_delete_business(text, uuid) from public;
-revoke all on function public.api_create_order(text, text, text, text, jsonb) from public;
+revoke all on function public.api_create_order(text, text, text, text, jsonb, uuid) from public;
 
 grant execute on function public.api_login(text, text) to anon, authenticated;
 grant execute on function public.api_logout(text) to anon, authenticated;
 grant execute on function public.api_snapshot(text) to anon, authenticated;
 grant execute on function public.api_track_visit(text) to anon, authenticated;
 grant execute on function public.api_track_whatsapp(text) to anon, authenticated;
-grant execute on function public.api_owner_save_business(text, text, text, integer, text, boolean, text) to anon, authenticated;
+grant execute on function public.api_owner_save_business(text, text, text, text, integer, jsonb, text, boolean, text) to anon, authenticated;
 grant execute on function public.api_owner_rename_category(text, text, text) to anon, authenticated;
 grant execute on function public.api_owner_create_product(text, text, text, integer, text, jsonb) to anon, authenticated;
 grant execute on function public.api_owner_update_product(text, uuid, text, text, integer, text, jsonb) to anon, authenticated;
@@ -1133,6 +1239,6 @@ grant execute on function public.api_super_create_business(text, text, text, tex
 grant execute on function public.api_super_update_business(text, uuid, text, text, text, integer, text, text, text) to anon, authenticated;
 grant execute on function public.api_super_update_access(text, uuid, text, text) to anon, authenticated;
 grant execute on function public.api_super_delete_business(text, uuid) to anon, authenticated;
-grant execute on function public.api_create_order(text, text, text, text, jsonb) to anon, authenticated;
+grant execute on function public.api_create_order(text, text, text, text, jsonb, uuid) to anon, authenticated;
 
 commit;

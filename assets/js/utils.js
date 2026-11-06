@@ -206,6 +206,19 @@ const Events = (() => {
   const onSubmit = (name, fn) => submits.set(name, fn);
 
   const bind = () => {
+    // Navegación SPA para enlaces internos limpios (sin recargar la página).
+    document.addEventListener('click', (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      const link = event.target.closest && event.target.closest('a[href]');
+      if (!link || link.target === '_blank' || link.hasAttribute('download')) return;
+      if (event.target.closest('[data-action]')) return;
+      const url = new URL(link.href, window.location.href);
+      if (url.origin !== window.location.origin) return;
+      if (!/^\/(?:negocio(?:\/|$)|ingreso\/?$|login\/?$|admin\/?$)/.test(url.pathname) && url.pathname !== '/') return;
+      event.preventDefault();
+      App.go(url.pathname);
+    });
+
     // Clics: el elemento más cercano con [data-action] gana (botones internos > tarjeta).
     document.addEventListener('click', (event) => {
       const host = event.target.closest && event.target.closest('[data-action]');

@@ -106,6 +106,12 @@ const Backend = (() => {
 
   const snapshot = () => rpc('api_snapshot', { p_token: token() }, { withToken: false });
 
+  // Datos acotados a la pantalla actual. Evita descargar todo el catálogo.
+  const view = (scope = 'home', slug = null) =>
+    rpc('api_view', { p_view: scope, p_slug: slug || null });
+
+  const session = () => view('session');
+
   const trackVisit = (slug = null) =>
     rpc('api_track_visit', { p_slug: slug }, { withToken: false });
 
@@ -115,6 +121,8 @@ const Backend = (() => {
   const createOrder = (payload) =>
     rpc('api_create_order', payload, { withToken: false });
 
+  const productAnalytics = () => rpc('api_product_analytics', {});
+
   return {
     enabled,
     token,
@@ -123,9 +131,12 @@ const Backend = (() => {
     login,
     logout,
     snapshot,
+    view,
+    session,
     trackVisit,
     trackWhatsapp,
     createOrder,
+    productAnalytics,
     rpc
   };
 })();

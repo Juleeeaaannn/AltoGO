@@ -46,8 +46,8 @@ const Auth = (() => {
   };
 
   /**
-   * Restaura la sesión y carga la foto de datos antes del primer render.
-   * En producción un token vencido se descarta y se muestra el catálogo público.
+   * Restaura la sesión antes del primer render. Los datos de la pantalla se
+   * cargan después, en App.renderRoute(). Un token vencido se descarta.
    */
   const init = async () => {
     if (!Backend.enabled) {
@@ -59,7 +59,12 @@ const Auth = (() => {
       return cachedSession;
     }
 
-    const snapshot = await Store.refresh();
+    if (!Backend.token()) {
+      cachedSession = null;
+      return null;
+    }
+
+    const snapshot = await Backend.session();
     if (snapshot && snapshot.user) {
       cachedSession = snapshot.user;
     } else {
@@ -96,7 +101,6 @@ const Auth = (() => {
         return { ok: false, message: 'Usuario o contraseña incorrectos.' };
       }
       Backend.saveToken(result.token);
-      await Store.refresh();
       cachedSession = result.user;
       return { ok: true, session: result.user };
     } catch (error) {
@@ -110,11 +114,6 @@ const Auth = (() => {
     if (Backend.enabled) {
       await Backend.logout();
       cachedSession = null;
-      try {
-        await Store.refresh();
-      } catch (error) {
-        console.warn('[AltoGO] No se pudo recargar el catálogo público.', error);
-      }
       return;
     }
     cachedSession = null;

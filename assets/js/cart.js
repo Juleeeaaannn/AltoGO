@@ -12,7 +12,7 @@ const Cart = (() => {
   // Contexto actual (solo existe dentro de un catálogo, fuera del modo dueño)
   let context = { slug: null, ownerMode: false };
   let items = [];              // [{ productId, qty }]
-  let customer = { name: '', notes: '', payment: '' };
+  let customer = { name: '', notes: '', payment: '', zoneId: '' };
   let isOpen = false;
 
   /* ---------- Persistencia ---------- */
@@ -30,7 +30,7 @@ const Cart = (() => {
 
   const hydrate = (slug) => {
     items = [];
-    customer = { name: '', notes: '', payment: '' };
+    customer = { name: '', notes: '', payment: '', zoneId: '' };
     try {
       const raw = localStorage.getItem(storageKey(slug));
       if (!raw) return;
@@ -47,7 +47,8 @@ const Cart = (() => {
         customer = {
           name: String(parsed.customer.name || ''),
           notes: String(parsed.customer.notes || ''),
-          payment: ['efectivo', 'transferencia'].includes(parsed.customer.payment) ? parsed.customer.payment : ''
+          payment: ['efectivo', 'transferencia'].includes(parsed.customer.payment) ? parsed.customer.payment : '',
+          zoneId: String(parsed.customer.zoneId || '')
         };
       }
     } catch {
@@ -72,8 +73,23 @@ const Cart = (() => {
       const product = Store.product(item.productId);
       return sum + (product ? product.price * item.qty : 0);
     }, 0);
-    const shipping = business ? Number(business.shippingCost) || 0 : 0;
-    return { subtotal, shipping, total: subtotal + shipping };
+    const info = Store.deliveryInfo(business);
+    const zone = info.mode === 'zones'
+      ? info.zones.find((entry) => entry.id === customer.zoneId) || null
+      : null;
+    const shipping = info.mode === 'whatsapp'
+      ? 0
+      : info.mode === 'zones'
+        ? (zone ? Number(zone.price) || 0 : 0)
+        : info.amount;
+    return {
+      subtotal,
+      shipping,
+      total: subtotal + shipping,
+      mode: info.mode,
+      zone,
+      shippingKnown: info.mode !== 'zones' || Boolean(zone)
+    };
   };
 
   /* ---------- Validación de stock ---------- */
@@ -194,7 +210,7 @@ const Cart = (() => {
   /* ---------- Enlace de WhatsApp ---------- */
 
   const buildMessage = (business) => {
-    const { subtotal, shipping, total } = totals();
+    const { subtotal, shipping, total, mode, zone } = totals();
     const paymentLabel = customer.payment === 'transferencia' ? 'Transferencia' : 'Efectivo';
     const lines = [
       ` *_PEDIDO ${ALTOGO.brand.name} - ${business.name}_*`,
@@ -210,10 +226,23 @@ const Cart = (() => {
       );
     });
 
+    if (mode === 'zones' && zone) lines.push(`Zona de entrega: *${zone.name}*`);
+    if (mode === 'whatsapp') {
+      lines.push(
+        'Delivery: *A coordinar por WhatsApp*',
+        '*—————————————*',
+        `_*TOTAL PRODUCTOS: ${Utils.money(subtotal)}*_`,
+        '_El costo del delivery se acuerda en el chat._'
+      );
+    } else {
+      lines.push(
+        `Envío - ${shipping > 0 ? Utils.money(shipping) : 'Gratis'}`,
+        '*—————————————*',
+        `_*TOTAL: ${Utils.money(total)}*_`
+      );
+    }
+
     lines.push(
-      `Envío - ${Utils.money(shipping)}`,
-      '*—————————————*',
-      `_*TOTAL: ${Utils.money(total)}*_`,
       '',
       `Pago: *${paymentLabel}*`,
       `Cliente: *${customer.name.trim()}*`,
@@ -255,6 +284,11 @@ const Cart = (() => {
       return { ok: false, message: 'Actualizamos tu pedido por cambios de stock. Revisa las cantidades.' };
     }
 
+    const summary = totals();
+    if (summary.mode === 'zones' && !summary.zone) {
+      return { ok: false, message: 'Elige tu zona de entrega para continuar.' };
+    }
+
     const message = buildMessage(business);
     const url = waLink(business, message);
 
@@ -265,7 +299,8 @@ const Cart = (() => {
           p_customer_name: name,
           p_notes: customer.notes.trim(),
           p_payment: customer.payment,
-          p_items: items.map((item) => ({ productId: item.productId, qty: item.qty }))
+          p_items: items.map((item) => ({ productId: item.productId, qty: item.qty })),
+          p_shipping_zone: summary.zone ? summary.zone.id : null
         });
         try {
           await Store.refresh();
@@ -276,8 +311,27 @@ const Cart = (() => {
         return { ok: false, message: error.message || 'No se pudo registrar el pedido. Intenta de nuevo.' };
       }
     } else {
-      // En demo, el clic en WhatsApp es la única señal de pedido.
+      // En demo, guardamos el pedido en localStorage para las analíticas locales.
       Store.trackWhatsappClick(business.slug);
+      Store.recordDemoOrder({
+        businessSlug: business.slug,
+        customerName: name,
+        payment: customer.payment,
+        items: items.map((item) => {
+          const product = Store.product(item.productId);
+          return {
+            productId: item.productId,
+            name: product ? product.name : '',
+            price: product ? product.price : 0,
+            qty: item.qty
+          };
+        }),
+        subtotal: summary.subtotal,
+        shipping: summary.shipping,
+        total: summary.total,
+        shippingMode: summary.mode,
+        shippingZone: summary.zone ? summary.zone.name : ''
+      });
     }
 
     // Se vacía el carrito del negocio pero se conserva el nombre del cliente.
@@ -288,7 +342,7 @@ const Cart = (() => {
     } catch {
       /* noop */
     }
-    customer = { name: previousCustomer.name, notes: '', payment: '' };
+    customer = { name: previousCustomer.name, notes: '', payment: '', zoneId: '' };
     persist();
     isOpen = false;
     render();
@@ -308,7 +362,12 @@ const Cart = (() => {
   const barHTML = () => {
     const business = currentBusiness();
     if (!business || context.ownerMode || !items.length) return '';
-    const { total } = totals();
+    const { total, mode, shippingKnown } = totals();
+    const totalLabel = mode === 'whatsapp'
+      ? `${Utils.money(total)} + delivery`
+      : !shippingKnown
+        ? `${Utils.money(total)} + envío`
+        : Utils.money(total);
 
     return `
       <button type="button" data-action="open-cart" aria-label="Ver mi pedido"
@@ -320,7 +379,7 @@ const Cart = (() => {
         </span>
         <span class="min-w-0 flex-1">
           <span class="block text-[10px] uppercase tracking-wider text-white/50">Tu pedido</span>
-          <span class="block truncate text-sm font-semibold tabular">${count()} ${count() === 1 ? 'artículo' : 'artículos'} · ${Utils.money(total)}</span>
+          <span class="block truncate text-sm font-semibold tabular">${count()} ${count() === 1 ? 'artículo' : 'artículos'} · ${totalLabel}</span>
         </span>
         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-lime text-ink">${Utils.icon('forward', 'h-4 w-4')}</span>
       </button>`;
@@ -363,7 +422,8 @@ const Cart = (() => {
     if (!isOpen) return '';
     const business = currentBusiness();
     if (!business) return '';
-    const { subtotal, shipping, total } = totals();
+    const { subtotal, shipping, total, mode, zone, shippingKnown } = totals();
+    const zones = Store.deliveryInfo(business).zones;
 
     const body = items.length
       ? `
@@ -382,6 +442,20 @@ const Cart = (() => {
               <textarea name="notes" rows="2" maxlength="500" data-input="checkout-notes" placeholder="Referencias, horario, timbre…"
                 class="w-full resize-none rounded-xl border border-ink/10 bg-cream/60 px-3 py-2.5 text-sm outline-none transition focus:border-ink focus:bg-white">${Utils.esc(customer.notes)}</textarea>
             </label>
+
+            ${mode === 'zones' ? `<label class="block">
+              <span class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-moss">Zona de entrega</span>
+              <select name="zoneId" data-change="checkout-zone" required
+                class="w-full rounded-xl border border-ink/10 bg-cream/60 px-3 py-2.5 text-sm outline-none transition focus:border-ink focus:bg-white">
+                <option value="">Elige tu zona</option>
+                ${zones.map((item) => `<option value="${Utils.esc(item.id)}" ${customer.zoneId === item.id ? 'selected' : ''}>${Utils.esc(item.name)} — ${Utils.money(item.price)}</option>`).join('')}
+              </select>
+            </label>` : ''}
+
+            ${mode === 'whatsapp' ? `<div class="flex gap-2.5 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-900">
+              <span class="mt-0.5 shrink-0">${Utils.icon('whatsapp', 'h-4 w-4')}</span>
+              <p class="text-[11px] leading-relaxed"><strong>El delivery se cobra por WhatsApp.</strong> Al enviar el pedido, el comercio coordina el costo según tu ubicación.</p>
+            </div>` : ''}
 
             <fieldset>
               <legend class="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-moss">Forma de pago</legend>
@@ -435,14 +509,14 @@ const Cart = (() => {
           <div class="shrink-0 border-t border-ink/5 bg-white px-5 pt-3" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));">
             <dl class="space-y-1 text-sm">
               <div class="flex justify-between text-moss"><dt>Subtotal</dt><dd class="tabular">${Utils.money(subtotal)}</dd></div>
-              <div class="flex justify-between text-moss"><dt>Envío</dt><dd class="tabular">${Utils.money(shipping)}</dd></div>
-              <div class="flex justify-between pt-1 text-base font-semibold"><dt>Total</dt><dd class="tabular">${Utils.money(total)}</dd></div>
+              <div class="flex justify-between text-moss"><dt>Envío</dt><dd class="tabular">${mode === 'whatsapp' ? 'A coordinar' : !shippingKnown ? 'Elige zona' : shipping > 0 ? Utils.money(shipping) : 'Gratis'}</dd></div>
+              <div class="flex justify-between gap-3 pt-1 text-base font-semibold"><dt>${mode === 'whatsapp' ? 'Total productos' : 'Total'}</dt><dd class="tabular text-right">${mode === 'whatsapp' ? Utils.money(subtotal) : !shippingKnown ? `${Utils.money(subtotal)} + envío` : Utils.money(total)}</dd></div>
             </dl>
             <button type="submit" form="checkout-form" ${items.length ? '' : 'disabled'}
               class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1FA855] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#188C46] disabled:opacity-40">
               ${Utils.icon('whatsapp', 'h-5 w-5')} Enviar pedido por WhatsApp
             </button>
-            <p class="mt-2 text-center text-[10px] leading-relaxed text-moss">Pago y entrega se acuerdan directo con el comercio.</p>
+            <p class="mt-2 text-center text-[10px] leading-relaxed text-moss">${mode === 'whatsapp' ? 'El costo del delivery se acuerda por WhatsApp con el comercio.' : 'Pago y entrega se acuerdan directo con el comercio.'}</p>
           </div>
         </aside>
       </div>`;
@@ -466,6 +540,11 @@ const Cart = (() => {
 
   const open = () => {
     if (!context.slug) return;
+    const business = currentBusiness();
+    const info = Store.deliveryInfo(business);
+    if (info.mode === 'zones' && customer.zoneId && !info.zones.some((zone) => zone.id === customer.zoneId)) {
+      customer.zoneId = '';
+    }
     if (reconcile()) {
       Utils.toast('Ajustamos tu pedido por cambios de stock.', 'warning');
     }
@@ -496,7 +575,7 @@ const Cart = (() => {
     context = { slug: null, ownerMode: false };
     items = [];
     isOpen = false;
-    customer = { name: '', notes: '', payment: '' };
+    customer = { name: '', notes: '', payment: '', zoneId: '' };
     render();
   };
 
@@ -523,13 +602,22 @@ const Cart = (() => {
   Events.onInput('checkout-name', (el) => saveCustomer({ name: el.value }));
   Events.onInput('checkout-notes', (el) => saveCustomer({ notes: el.value }));
   Events.onChange('checkout-payment', (el) => saveCustomer({ payment: el.value }));
+  Events.onChange('checkout-zone', (el) => {
+    const scrollBody = document.querySelector('aside .overflow-y-auto');
+    const scrollTop = scrollBody ? scrollBody.scrollTop : 0;
+    saveCustomer({ zoneId: el.value });
+    render();
+    const nextBody = document.querySelector('aside .overflow-y-auto');
+    if (nextBody) nextBody.scrollTop = scrollTop;
+  });
 
   Events.onSubmit('checkout', async (form) => {
     const data = new FormData(form);
     saveCustomer({
       name: String(data.get('name') || ''),
       notes: String(data.get('notes') || ''),
-      payment: String(data.get('payment') || '')
+      payment: String(data.get('payment') || ''),
+      zoneId: String(data.get('zoneId') || '')
     });
 
     const result = await submitOrder();

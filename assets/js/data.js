@@ -1,9 +1,9 @@
 /* ==========================================================================
    AltoGO · Capa de datos
    --------------------------------------------------------------------------
-   Con Supabase configurado, la app carga una foto de la base y las mutaciones
-   pasan por RPC seguras. Sin configuración (desarrollo), usa localStorage con
-   datos de demostración y la MISMA forma para no tocar las vistas.
+   Con Supabase configurado, cada pantalla carga solo los datos que muestra y
+   las mutaciones pasan por RPC seguras. Sin configuración (desarrollo), usa
+   localStorage con datos de demostración y la MISMA forma para no tocar las vistas.
 
    Reglas de negocio importantes:
    - status: 'activo' | 'oculto'
@@ -41,31 +41,37 @@ const SEED_DATA = {
   businesses: [
     {
       id: 'biz_esquina', slug: 'almacen-la-esquina', name: 'Almacén La Esquina',
-      whatsapp: '5215512345678', shippingCost: 25, logo: '', status: 'activo', open: true,
+      whatsapp: '5215512345678', shippingMode: 'fixed', shippingCost: 25, shippingZones: [], logo: '', status: 'activo', open: true,
       tagline: 'Despensa, limpieza y productos para tu día.',
       visits: 482, whatsappClicks: 76, createdAt: '2026-02-04'
     },
     {
       id: 'biz_donpedro', slug: 'don-pedro', name: 'Don Pedro',
-      whatsapp: '5215587654321', shippingCost: 35, logo: '', status: 'activo', open: true,
+      whatsapp: '5215587654321', shippingMode: 'zones', shippingCost: 0,
+      shippingZones: [
+        { id: 'zone_dp_centro', name: 'Centro', price: 30 },
+        { id: 'zone_dp_norte', name: 'Norte', price: 45 },
+        { id: 'zone_dp_sur', name: 'Sur', price: 40 }
+      ],
+      logo: '', status: 'activo', open: true,
       tagline: 'Productos frescos y básicos para tu casa.',
       visits: 318, whatsappClicks: 54, createdAt: '2026-02-11'
     },
     {
       id: 'biz_vinos', slug: 'casa-verde', name: 'Casa Verde',
-      whatsapp: '5215599887766', shippingCost: 40, logo: '', status: 'activo', open: true,
+      whatsapp: '5215599887766', shippingMode: 'whatsapp', shippingCost: 0, shippingZones: [], logo: '', status: 'activo', open: true,
       tagline: 'Naturales, cuidado personal y hogar.',
       visits: 205, whatsappClicks: 31, createdAt: '2026-02-19'
     },
     {
       id: 'biz_roble', slug: 'el-roble', name: 'El Roble',
-      whatsapp: '5215511223344', shippingCost: 20, logo: '', status: 'oculto', open: true,
+      whatsapp: '5215511223344', shippingMode: 'fixed', shippingCost: 20, shippingZones: [], logo: '', status: 'oculto', open: true,
       tagline: 'Accesorios y artículos para el hogar.',
       visits: 64, whatsappClicks: 9, createdAt: '2026-03-02'
     },
     {
       id: 'biz_deposito', slug: 'deposito-central', name: 'Depósito Central',
-      whatsapp: '5215533445566', shippingCost: 30, logo: '', status: 'activo', open: false,
+      whatsapp: '5215533445566', shippingMode: 'fixed', shippingCost: 30, shippingZones: [], logo: '', status: 'activo', open: false,
       tagline: 'Mayoreo de productos para eventos y negocios.',
       visits: 97, whatsappClicks: 14, createdAt: '2026-03-08'
     }
@@ -109,6 +115,79 @@ const SEED_DATA = {
     { id: 'p_dep_2', businessSlug: 'deposito-central', name: 'Bolsas de papel 50 unidades', category: 'Otros', price: 3500, image: '', stock: 0 },
     { id: 'p_dep_3', businessSlug: 'deposito-central', name: 'Servilletas 100 unidades', category: 'Otros', price: 1800, image: '', stock: true },
     { id: 'p_dep_4', businessSlug: 'deposito-central', name: 'Cubiertos descartables 24 unidades', category: 'Otros', price: 2600, image: '', stock: 8 }
+  ],
+
+  orders: [
+    {
+      id: 'ord_demo_1', code: 'AG-DEMO001', businessSlug: 'almacen-la-esquina', customerName: 'Lucía', payment: 'efectivo',
+      subtotal: 7700, shipping: 25, total: 7725, createdAt: '2026-10-02T10:20:00-03:00',
+      items: [
+        { productId: 'p_esq_1', name: 'Arroz largo fino 1 kg', price: 1450, qty: 4 },
+        { productId: 'p_esq_2', name: 'Fideos spaghetti 500 g', price: 950, qty: 2 }
+      ]
+    },
+    {
+      id: 'ord_demo_2', code: 'AG-DEMO002', businessSlug: 'almacen-la-esquina', customerName: 'Martín', payment: 'transferencia',
+      subtotal: 14300, shipping: 25, total: 14325, createdAt: '2026-10-12T18:05:00-03:00',
+      items: [
+        { productId: 'p_esq_5', name: 'Yerba mate 1 kg', price: 3800, qty: 3 },
+        { productId: 'p_esq_1', name: 'Arroz largo fino 1 kg', price: 1450, qty: 2 }
+      ]
+    },
+    {
+      id: 'ord_demo_3', code: 'AG-DEMO003', businessSlug: 'don-pedro', customerName: 'Sofía', payment: 'efectivo',
+      subtotal: 11400, shipping: 30, total: 11430, createdAt: '2026-10-05T09:40:00-03:00',
+      items: [
+        { productId: 'p_dp_2', name: 'Leche entera 1 L', price: 1200, qty: 5 },
+        { productId: 'p_dp_1', name: 'Pan lactal 500 g', price: 1800, qty: 3 }
+      ]
+    },
+    {
+      id: 'ord_demo_4', code: 'AG-DEMO004', businessSlug: 'don-pedro', customerName: 'Jorge', payment: 'transferencia',
+      subtotal: 11400, shipping: 45, total: 11445, createdAt: '2026-10-18T20:15:00-03:00',
+      items: [
+        { productId: 'p_dp_3', name: 'Queso cremoso 500 g', price: 4500, qty: 2 },
+        { productId: 'p_dp_2', name: 'Leche entera 1 L', price: 1200, qty: 2 }
+      ]
+    },
+    {
+      id: 'ord_demo_5', code: 'AG-DEMO005', businessSlug: 'casa-verde', customerName: 'Ana', payment: 'transferencia',
+      subtotal: 17600, shipping: 0, total: 17600, createdAt: '2026-10-08T11:30:00-03:00',
+      items: [
+        { productId: 'p_cas_2', name: 'Shampoo 400 ml', price: 3800, qty: 2 },
+        { productId: 'p_cas_5', name: 'Velas aromáticas', price: 2500, qty: 4 }
+      ]
+    },
+    {
+      id: 'ord_demo_6', code: 'AG-DEMO006', businessSlug: 'casa-verde', customerName: 'Pedro', payment: 'efectivo',
+      subtotal: 12100, shipping: 0, total: 12100, createdAt: '2026-10-21T16:00:00-03:00',
+      items: [
+        { productId: 'p_cas_1', name: 'Jabón líquido 500 ml', price: 2100, qty: 3 },
+        { productId: 'p_cas_3', name: 'Desodorante 150 ml', price: 2900, qty: 2 }
+      ]
+    },
+    {
+      id: 'ord_demo_7', code: 'AG-DEMO007', businessSlug: 'deposito-central', customerName: 'Eventos Norte', payment: 'transferencia',
+      subtotal: 31800, shipping: 30, total: 31830, createdAt: '2026-10-10T14:10:00-03:00',
+      items: [
+        { productId: 'p_dep_1', name: 'Caja de vasos 12 unidades', price: 4800, qty: 5 },
+        { productId: 'p_dep_4', name: 'Cubiertos descartables 24 unidades', price: 2600, qty: 3 }
+      ]
+    },
+    {
+      id: 'ord_demo_8', code: 'AG-DEMO008', businessSlug: 'deposito-central', customerName: 'Salón Azul', payment: 'efectivo',
+      subtotal: 3600, shipping: 30, total: 3630, createdAt: '2026-10-24T12:45:00-03:00',
+      items: [
+        { productId: 'p_dep_3', name: 'Servilletas 100 unidades', price: 1800, qty: 2 }
+      ]
+    },
+    {
+      id: 'ord_demo_9', code: 'AG-DEMO009', businessSlug: 'el-roble', customerName: 'Carolina', payment: 'transferencia',
+      subtotal: 13000, shipping: 20, total: 13020, createdAt: '2026-10-15T17:25:00-03:00',
+      items: [
+        { productId: 'p_rob_3', name: 'Lámpara LED', price: 6500, qty: 2 }
+      ]
+    }
   ]
 };
 
@@ -117,8 +196,28 @@ const SEED_DATA = {
    -------------------------------------------------------------------------- */
 const Store = (() => {
   let db = null;
+  let currentView = { scope: 'home', slug: null };
+  let viewRequest = 0;
 
   const clone = (value) => JSON.parse(JSON.stringify(value));
+
+  const normalizeBusiness = (business) => {
+    if (!business || typeof business !== 'object') return business;
+    business.shippingMode = ['fixed', 'zones', 'whatsapp'].includes(business.shippingMode)
+      ? business.shippingMode
+      : 'fixed';
+    business.shippingCost = Math.max(0, Math.floor(Number(business.shippingCost) || 0));
+    business.shippingZones = Array.isArray(business.shippingZones)
+      ? business.shippingZones
+          .filter((zone) => zone && String(zone.name || '').trim())
+          .map((zone) => ({
+            id: String(zone.id || Utils.uid('zone')),
+            name: String(zone.name).trim(),
+            price: Math.max(0, Math.floor(Number(zone.price) || 0))
+          }))
+      : [];
+    return business;
+  };
 
   const load = () => {
     try {
@@ -128,6 +227,7 @@ const Store = (() => {
         if (parsed && Array.isArray(parsed.businesses) && Array.isArray(parsed.products)) {
           // Asegura que existan todas las ramas esperadas (por si editas el JSON a mano).
           parsed.users = Array.isArray(parsed.users) ? parsed.users : [];
+          parsed.orders = Array.isArray(parsed.orders) ? parsed.orders : [];
           parsed.global = parsed.global || { visits: 0, whatsappClicks: 0 };
           // Migración: antes "inactivo" significaba cerrado. Ahora la apertura
           // es independiente de la visibilidad y la controla cada comercio.
@@ -136,6 +236,7 @@ const Store = (() => {
             if (business.status === 'inactivo') business.status = 'activo';
             if (business.status !== 'oculto') business.status = 'activo';
             if (typeof business.open !== 'boolean') business.open = !wasInactive;
+            normalizeBusiness(business);
           });
           return parsed;
         }
@@ -162,17 +263,28 @@ const Store = (() => {
   const applySnapshot = (snapshot) => {
     const data = snapshot || {};
     db.businesses = Array.isArray(data.businesses) ? data.businesses : [];
+    db.businesses.forEach(normalizeBusiness);
     db.products = Array.isArray(data.products) ? data.products : [];
     db.users = Array.isArray(data.users) ? data.users : [];
+    db.orders = [];
     db.global = data.global || { visits: 0, whatsappClicks: 0 };
     return data;
   };
 
-  const refresh = async () => {
+  // Carga únicamente los datos de la pantalla actual.
+  const loadView = async (scope = 'home', slug = null) => {
     if (!Backend.enabled) return null;
-    const snapshot = await Backend.snapshot();
+    const request = ++viewRequest;
+    const snapshot = await Backend.view(scope, slug);
+    if (request !== viewRequest) return null;
+    currentView = { scope, slug: slug || null };
     applySnapshot(snapshot);
     return snapshot;
+  };
+
+  const refresh = async () => {
+    if (!Backend.enabled) return null;
+    return loadView(currentView.scope, currentView.slug);
   };
 
   /* ---------- Lectura ---------- */
@@ -186,12 +298,47 @@ const Store = (() => {
   const business = (slug) =>
     db.businesses.find((item) => item.slug === slug) || null;
 
+  const deliveryInfo = (businessItem) => {
+    if (!businessItem) return { mode: 'fixed', amount: 0, zones: [], label: 'Envío gratis' };
+    const mode = ['fixed', 'zones', 'whatsapp'].includes(businessItem.shippingMode)
+      ? businessItem.shippingMode
+      : 'fixed';
+    const zones = Array.isArray(businessItem.shippingZones) ? businessItem.shippingZones : [];
+
+    if (mode === 'whatsapp') {
+      return { mode, amount: null, zones, label: 'Delivery por WhatsApp' };
+    }
+    if (mode === 'zones') {
+      const prices = zones.map((zone) => Number(zone.price) || 0);
+      const min = prices.length ? Math.min(...prices) : 0;
+      return {
+        mode,
+        amount: null,
+        zones,
+        min,
+        label: zones.length ? `Envío desde ${Utils.money(min)}` : 'Envío por zona'
+      };
+    }
+
+    const amount = Math.max(0, Number(businessItem.shippingCost) || 0);
+    return { mode, amount, zones, label: amount > 0 ? `Envío ${Utils.money(amount)}` : 'Envío gratis' };
+  };
+
+  const deliveryLabel = (businessItem) => deliveryInfo(businessItem).label;
+
   const products = (slug) =>
     db.products.filter((product) => product.businessSlug === slug);
 
   const product = (id) => db.products.find((item) => item.id === id) || null;
 
   const productCount = () => db.products.length;
+
+  // En inicio y panel los productos no se descargan: usamos el contador del RPC.
+  const productCountOf = (businessItem) => {
+    if (!businessItem) return 0;
+    const count = Number(businessItem.productCount);
+    return Number.isFinite(count) ? count : products(businessItem.slug).length;
+  };
 
   /* ---------- Stock flexible ---------- */
 
@@ -246,6 +393,92 @@ const Store = (() => {
     const item = business(slug);
     if (item) item.whatsappClicks = Number(item.whatsappClicks || 0) + 1;
     persist();
+  };
+
+  const recordDemoOrder = (data) => {
+    if (Backend.enabled) return null;
+    const order = {
+      id: Utils.uid('ord'),
+      code: `AG-${Math.random().toString(36).slice(2, 10).toUpperCase()}`,
+      businessSlug: data.businessSlug,
+      customerName: String(data.customerName || ''),
+      payment: data.payment,
+      subtotal: Number(data.subtotal) || 0,
+      shipping: Number(data.shipping) || 0,
+      total: Number(data.total) || 0,
+      shippingMode: data.shippingMode || 'fixed',
+      shippingZone: data.shippingZone || '',
+      createdAt: new Date().toISOString(),
+      items: (data.items || []).map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        price: Number(item.price) || 0,
+        qty: Number(item.qty) || 0
+      }))
+    };
+    db.orders = Array.isArray(db.orders) ? db.orders : [];
+    db.orders.unshift(order);
+    persist();
+    return order;
+  };
+
+  const demoProductAnalytics = (businessSlug = null) => {
+    const orders = (db.orders || []).filter((order) =>
+      !businessSlug || order.businessSlug === businessSlug
+    );
+    const products = new Map();
+    const businesses = new Map();
+    const totals = { orders: 0, items: 0, revenue: 0 };
+
+    orders.forEach((order) => {
+      const businessItem = business(order.businessSlug);
+      if (!businessItem) return;
+      totals.orders += 1;
+      const businessRow = businesses.get(businessItem.slug) || {
+        slug: businessItem.slug, name: businessItem.name, qty: 0, revenue: 0, orders: 0
+      };
+      businessRow.orders += 1;
+
+      (Array.isArray(order.items) ? order.items : []).forEach((item) => {
+        const qty = Math.max(0, Math.floor(Number(item.qty) || 0));
+        if (!qty) return;
+        const price = Math.max(0, Number(item.price) || 0);
+        const productItem = item.productId ? product(item.productId) : null;
+        const key = item.productId || `name:${String(item.name || '').toLowerCase()}`;
+        const row = products.get(key) || {
+          productId: item.productId || null,
+          name: productItem ? productItem.name : item.name || 'Producto eliminado',
+          businessSlug: businessItem.slug,
+          businessName: businessItem.name,
+          qty: 0,
+          revenue: 0,
+          orders: 0,
+          lastSoldAt: order.createdAt
+        };
+        row.qty += qty;
+        row.revenue += qty * price;
+        row.orders += 1;
+        if (String(order.createdAt) > String(row.lastSoldAt)) row.lastSoldAt = order.createdAt;
+        products.set(key, row);
+
+        businessRow.qty += qty;
+        businessRow.revenue += qty * price;
+        totals.items += qty;
+        totals.revenue += qty * price;
+      });
+      businesses.set(businessItem.slug, businessRow);
+    });
+
+    return {
+      totals,
+      products: [...products.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue).slice(0, 200),
+      businesses: [...businesses.values()].sort((a, b) => b.qty - a.qty || b.revenue - a.revenue)
+    };
+  };
+
+  const loadProductAnalytics = async (businessSlug = null) => {
+    if (Backend.enabled) return Backend.productAnalytics();
+    return demoProductAnalytics(businessSlug);
   };
 
   /* ---------- Usuarios / sesión ---------- */
@@ -316,7 +549,9 @@ const Store = (() => {
       slug: data.slug,
       name: data.name,
       whatsapp: data.whatsapp || '',
+      shippingMode: data.shippingMode || 'fixed',
       shippingCost: Number(data.shippingCost) || 0,
+      shippingZones: Array.isArray(data.shippingZones) ? data.shippingZones : [],
       logo: data.logo || '',
       status: data.status || 'activo',
       open: true,
@@ -325,6 +560,7 @@ const Store = (() => {
       whatsappClicks: 0,
       createdAt: new Date().toISOString().slice(0, 10)
     };
+    normalizeBusiness(created);
     db.businesses.unshift(created);
     saveBusinessUser({
       businessSlug: created.slug,
@@ -359,7 +595,9 @@ const Store = (() => {
       name: data.name,
       slug: data.slug,
       whatsapp: data.whatsapp,
-      shippingCost: Number(data.shippingCost) || 0,
+      shippingMode: target.shippingMode || 'fixed',
+      shippingCost: data.shippingCost === undefined ? target.shippingCost : Number(data.shippingCost) || 0,
+      shippingZones: Array.isArray(data.shippingZones) ? data.shippingZones : target.shippingZones || [],
       logo: data.logo || '',
       status: data.status,
       tagline: data.tagline || ''
@@ -403,7 +641,9 @@ const Store = (() => {
       await Backend.rpc('api_owner_save_business', {
         p_name: data.name,
         p_whatsapp: data.whatsapp,
+        p_shipping_mode: data.shippingMode || 'fixed',
         p_shipping_cost: Math.max(0, Number(data.shippingCost) || 0),
+        p_shipping_zones: Array.isArray(data.shippingZones) ? data.shippingZones : [],
         p_logo: data.logo || '',
         p_open: Boolean(data.open),
         p_tagline: data.tagline || ''
@@ -416,9 +656,12 @@ const Store = (() => {
     target.name = data.name;
     target.tagline = data.tagline || '';
     target.whatsapp = data.whatsapp;
+    target.shippingMode = data.shippingMode || 'fixed';
     target.shippingCost = Math.max(0, Number(data.shippingCost) || 0);
+    target.shippingZones = Array.isArray(data.shippingZones) ? data.shippingZones : [];
     target.logo = data.logo || '';
     if (typeof data.open === 'boolean') target.open = data.open;
+    normalizeBusiness(target);
     const owner = userForBusiness(slug);
     if (owner) owner.name = data.name;
     persist();
@@ -611,9 +854,10 @@ const Store = (() => {
 
   return {
     get data() { return db; },
-    refresh, applySnapshot,
-    businesses, listedBusinesses, business, products, product, productCount,
-    stock, trackVisit, trackWhatsappClick,
+    refresh, applySnapshot, loadView,
+    businesses, listedBusinesses, business, deliveryInfo, deliveryLabel,
+    products, product, productCount, productCountOf,
+    stock, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
     findUser, userForBusiness, usernameTaken,
     createBusiness, updateBusiness, updateBusinessProfile, renameCategory, updateAccess,
     moveBusiness, deleteBusiness, setBusinessStatus, slugTaken,

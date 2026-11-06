@@ -54,15 +54,13 @@ const Storefront = (() => {
     Cart.detach();
 
     const businesses = Store.listedBusinesses();
-    const active = businesses.filter((b) => b.open);
-    const activeProducts = active.reduce((sum, b) => sum + Store.products(b.slug).length, 0);
 
     const card = (business) => {
-      const products = Store.products(business.slug);
+      const productCount = Store.productCountOf(business);
       const status = Utils.openMeta(business.open);
       const isOpen = business.open;
       return `
-        <a href="#/negocio/${encodeURIComponent(business.slug)}"
+        <a href="/negocio/${encodeURIComponent(business.slug)}"
           class="group flex min-w-0 items-center gap-3 rounded-2xl border border-ink/5 bg-white p-3.5 transition duration-200 hover:border-ink/15 hover:shadow-[0_16px_35px_-26px_rgba(11,21,17,.5)] sm:gap-4 sm:p-4">
           ${logoMark(business, 'h-12 w-12 sm:h-14 sm:w-14', 'text-sm sm:text-base')}
           <div class="min-w-0 flex-1">
@@ -72,9 +70,9 @@ const Storefront = (() => {
             </div>
             <p class="mt-0.5 truncate text-[11px] text-moss sm:text-xs">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
             <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-moss sm:text-[11px]">
-              <span>${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
+              <span>${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
               <span class="h-1 w-1 rounded-full bg-ink/15"></span>
-              <span>Envío ${Utils.money(business.shippingCost)}</span>
+              <span>${Store.deliveryLabel(business)}</span>
               ${isOpen ? '<span class="hidden items-center gap-1 sm:inline-flex"><span class="h-1 w-1 rounded-full bg-emerald-500"></span> Abierto</span>' : ''}
             </div>
           </div>
@@ -89,7 +87,7 @@ const Storefront = (() => {
         <!-- Header público (sin accesos administrativos) -->
         <header class="sticky top-0 z-40 border-b border-ink/5 bg-white/90 backdrop-blur-xl">
           <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-            <a href="#/" class="flex items-center gap-2.5">
+            <a href="/" class="flex items-center gap-2.5">
               
               <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
 
@@ -287,7 +285,7 @@ const Storefront = (() => {
         <!-- Barra superior: "Atrás" siempre visible -->
         <header class="sticky top-0 z-40 border-b border-ink/5 bg-white/90 backdrop-blur-xl">
           <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-            <a href="#/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
+            <a href="/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
               <span class="grid h-7 w-7 place-items-center rounded-full bg-cream">${Utils.icon('back', 'h-3.5 w-3.5')}</span>
               <span>Todos los comercios</span>
             </a>
@@ -301,7 +299,7 @@ const Storefront = (() => {
                 </button>` : ''}
               ${superMode ? `
                 <span class="hidden items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-lime sm:inline-flex">${Utils.icon('shield', 'h-3.5 w-3.5')} Super admin</span>
-                <a href="#/admin" class="grid h-9 w-9 place-items-center rounded-full border border-ink/10 bg-white text-moss transition hover:text-ink" aria-label="Volver al panel" title="Volver al panel">
+                <a href="/admin" class="grid h-9 w-9 place-items-center rounded-full border border-ink/10 bg-white text-moss transition hover:text-ink" aria-label="Volver al panel" title="Volver al panel">
                   ${Utils.icon('chart', 'h-4 w-4')}
                 </a>` : ''}
               ${!ownerMode && !superMode ? `
@@ -322,7 +320,7 @@ const Storefront = (() => {
                 </div>
                 <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-moss sm:text-sm">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
                 <div class="mt-3 flex flex-wrap gap-1.5 text-[11px] text-moss">
-                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${Utils.icon('bag', 'h-3.5 w-3.5')} Envío ${Utils.money(business.shippingCost)}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${Utils.icon('bag', 'h-3.5 w-3.5')} ${Store.deliveryLabel(business)}</span>
                   <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
                 </div>
               </div>
@@ -386,7 +384,7 @@ const Storefront = (() => {
     </div>`;
 
   const backButton = `
-    <a href="#/" class="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
+    <a href="/" class="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
       ${Utils.icon('back', 'h-4 w-4')} Volver a todos los comercios
     </a>`;
 

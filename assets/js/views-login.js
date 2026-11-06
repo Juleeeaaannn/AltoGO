@@ -2,7 +2,7 @@
    AltoGO · Vista de acceso oculto (/ingreso)
    --------------------------------------------------------------------------
    Esta ruta NO está enlazada desde ninguna vista pública: hay que escribirla
-   a mano (/#/ingreso, /ingreso o ?login). Desde aquí entran el super admin y
+   a mano (/ingreso). Desde aquí entran el super admin y
    los administradores de cada comercio.
    ========================================================================== */
 
@@ -69,7 +69,7 @@ const LoginView = (() => {
               </div>
             </details>`}
 
-            <a href="#/" class="mt-5 flex items-center justify-center gap-1.5 text-xs font-medium text-moss transition hover:text-ink">
+            <a href="/" class="mt-5 flex items-center justify-center gap-1.5 text-xs font-medium text-moss transition hover:text-ink">
               ${Utils.icon('back', 'h-3.5 w-3.5')} Volver al catálogo público
             </a>
           </div>

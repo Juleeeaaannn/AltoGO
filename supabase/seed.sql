@@ -16,14 +16,21 @@ values (1, 1864, 214)
 on conflict (id) do update
 set visits = excluded.visits, whatsapp_clicks = excluded.whatsapp_clicks;
 
-insert into public.businesses (id, slug, name, whatsapp, shipping_cost, logo, status, open, tagline, visits, whatsapp_clicks, sort_order, created_at)
+insert into public.businesses (id, slug, name, whatsapp, shipping_mode, shipping_cost, logo, status, open, tagline, visits, whatsapp_clicks, sort_order, created_at)
 values
-  ('11111111-1111-4111-8111-111111111111', 'almacen-la-esquina', 'Almacén La Esquina', '5491123456789', 25, '', 'activo', true, 'Despensa, limpieza y productos para tu día.', 482, 76, 0, now() - interval '20 days'),
-  ('22222222-2222-4222-8222-222222222222', 'don-pedro', 'Don Pedro', '5491134567890', 35, '', 'activo', true, 'Productos frescos y básicos para tu casa.', 318, 54, 1, now() - interval '18 days'),
-  ('33333333-3333-4333-8333-333333333333', 'casa-verde', 'Casa Verde', '5491145678901', 40, '', 'activo', true, 'Naturales, cuidado personal y hogar.', 205, 31, 2, now() - interval '16 days'),
-  ('44444444-4444-4444-8444-444444444444', 'el-roble', 'El Roble', '5491156789012', 20, '', 'oculto', true, 'Accesorios y artículos para el hogar.', 64, 9, 3, now() - interval '14 days'),
-  ('55555555-5555-4555-8555-555555555555', 'deposito-central', 'Depósito Central', '5491167890123', 30, '', 'activo', false, 'Mayoreo de productos para eventos y negocios.', 97, 14, 4, now() - interval '12 days')
+  ('11111111-1111-4111-8111-111111111111', 'almacen-la-esquina', 'Almacén La Esquina', '5491123456789', 'fixed', 25, '', 'activo', true, 'Despensa, limpieza y productos para tu día.', 482, 76, 0, now() - interval '20 days'),
+  ('22222222-2222-4222-8222-222222222222', 'don-pedro', 'Don Pedro', '5491134567890', 'zones', 0, '', 'activo', true, 'Productos frescos y básicos para tu casa.', 318, 54, 1, now() - interval '18 days'),
+  ('33333333-3333-4333-8333-333333333333', 'casa-verde', 'Casa Verde', '5491145678901', 'whatsapp', 0, '', 'activo', true, 'Naturales, cuidado personal y hogar.', 205, 31, 2, now() - interval '16 days'),
+  ('44444444-4444-4444-8444-444444444444', 'el-roble', 'El Roble', '5491156789012', 'fixed', 20, '', 'oculto', true, 'Accesorios y artículos para el hogar.', 64, 9, 3, now() - interval '14 days'),
+  ('55555555-5555-4555-8555-555555555555', 'deposito-central', 'Depósito Central', '5491167890123', 'fixed', 30, '', 'activo', false, 'Mayoreo de productos para eventos y negocios.', 97, 14, 4, now() - interval '12 days')
 on conflict (slug) do nothing;
+
+insert into public.shipping_zones (id, business_id, name, price, sort_order)
+values
+  ('22222222-2222-4222-8222-222222222201', '22222222-2222-4222-8222-222222222222', 'Centro', 30, 0),
+  ('22222222-2222-4222-8222-222222222202', '22222222-2222-4222-8222-222222222222', 'Norte', 45, 1),
+  ('22222222-2222-4222-8222-222222222203', '22222222-2222-4222-8222-222222222222', 'Sur', 40, 2)
+on conflict (id) do nothing;
 
 insert into public.staff (id, username, password_hash, role, business_id, name)
 values
