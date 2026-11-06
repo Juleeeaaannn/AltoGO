@@ -6,10 +6,10 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "rewrites": [
-    { "source": "/negocio/(.*)", "destination": "/index.html" },
-    { "source": "/ingreso", "destination": "/index.html" },
-    { "source": "/login", "destination": "/index.html" },
-    { "source": "/admin", "destination": "/index.html" }
+    { "source": "/negocio/(.*)", "destination": "/index" },
+    { "source": "/ingreso", "destination": "/index" },
+    { "source": "/login", "destination": "/index" },
+    { "source": "/admin", "destination": "/index" }
   ],
   "headers": [
     {
