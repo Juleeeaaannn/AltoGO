@@ -46,6 +46,32 @@ const Storefront = (() => {
     </div>`;
   };
 
+  const linkLabel = (url) => {
+    try {
+      const host = new URL(url).hostname.replace(/^www\./i, '');
+      return host || 'Enlace';
+    } catch {
+      return 'Enlace';
+    }
+  };
+
+  const productLinksHTML = (product) => {
+    const links = Array.isArray(product.links) ? product.links.filter(Boolean) : [];
+    if (!links.length) return '';
+    return `
+      <div class="mt-4 rounded-2xl border border-ink/5 bg-[#F7F8FA] p-3.5">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Enlaces del producto</p>
+        <div class="mt-2 flex flex-wrap gap-2">
+          ${links.map((url) => `
+            <a href="${Utils.esc(url)}" target="_blank" rel="noopener noreferrer"
+              class="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
+              ${Utils.icon('forward', 'h-3.5 w-3.5 shrink-0')}
+              <span class="truncate">${Utils.esc(linkLabel(url))}</span>
+            </a>`).join('')}
+        </div>
+      </div>`;
+  };
+
   /* ------------------------------------------------------------------------
      HOME
      ------------------------------------------------------------------------ */
@@ -194,18 +220,7 @@ const Storefront = (() => {
     });
   };
 
-  const categoriesOf = (business) => {
-    const present = Array.from(new Set(Store.products(business.slug).map((p) => p.category)));
-    const order = Object.keys(ALTOGO.categories);
-    return present.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b, 'es');
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  };
+  const categoriesOf = (business) => Store.categoriesOf(business.slug);
 
   const chipsHTML = (business) => {
     const categories = categoriesOf(business);
@@ -500,7 +515,8 @@ const Storefront = (() => {
         </div>
         <p class="mt-4 rounded-xl bg-[#F4F5F7] px-3.5 py-3 text-[11px] leading-relaxed text-moss">
           Puedes ajustar la cantidad desde el carrito. El pedido se coordina por WhatsApp con el comercio.
-        </p>`
+        </p>
+        ${productLinksHTML(product)}`
     });
   });
 

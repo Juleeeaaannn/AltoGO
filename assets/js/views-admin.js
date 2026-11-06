@@ -667,18 +667,7 @@ const OwnerUI = (() => {
 
   const isHttpUrl = (value) => !value || /^https?:\/\//i.test(value);
 
-  const categoriesOf = (business) => {
-    const present = Array.from(new Set(Store.products(business.slug).map((p) => p.category)));
-    const order = Object.keys(ALTOGO.categories);
-    return present.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b, 'es');
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  };
+  const categoriesOf = (business) => Store.categoriesOf(business.slug);
 
   /* Barra de administración dentro del catálogo */
   const toolbar = (business) => `
@@ -801,14 +790,22 @@ const OwnerUI = (() => {
 
     const body = categories.length
       ? `<form data-form="categories-save" class="space-y-4">
-          <p class="text-xs leading-relaxed text-moss">Renombra una categoría y se actualizará en todos sus productos.</p>
+          <p class="text-xs leading-relaxed text-moss">Renombra cada categoría y usa las flechas para elegir el orden en que aparecen en tu catálogo.</p>
           <div class="space-y-2">
-            ${categories.map((category) => {
+            ${categories.map((category, index) => {
               const count = products.filter((p) => p.category === category).length;
-              return `<div class="flex items-center gap-2">
+              return `<div data-category-row class="flex items-center gap-2">
                 <input name="cat::${Utils.esc(category)}" value="${Utils.esc(category)}" required maxlength="40"
-                  class="${inputCls}" aria-label="Nombre de la categoría ${Utils.esc(category)}" />
-                <span class="w-16 shrink-0 text-right text-[11px] text-moss">${count} ${count === 1 ? 'producto' : 'productos'}</span>
+                  class="${inputCls} min-w-0 flex-1" aria-label="Nombre de la categoría ${Utils.esc(category)}" />
+                <span class="hidden w-16 shrink-0 text-right text-[11px] text-moss sm:block">${count} ${count === 1 ? 'producto' : 'productos'}</span>
+                <div class="flex shrink-0 items-center">
+                  <button type="button" data-action="category-move" data-dir="up" ${index === 0 ? 'disabled' : ''}
+                    aria-label="Subir ${Utils.esc(category)}" title="Subir"
+                    class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
+                  <button type="button" data-action="category-move" data-dir="down" ${index === categories.length - 1 ? 'disabled' : ''}
+                    aria-label="Bajar ${Utils.esc(category)}" title="Bajar"
+                    class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('down', 'h-4 w-4')}</button>
+                </div>
               </div>`;
             }).join('')}
           </div>
@@ -833,15 +830,18 @@ const OwnerUI = (() => {
     const products = Store.products(business.slug);
 
     const body = products.length
-      ? `<p class="text-xs leading-relaxed text-moss">El orden se aplica a tu catálogo en la vista <strong>Todas</strong>. Usa las flechas para mover cada producto.</p>
+      ? `<p class="text-xs leading-relaxed text-moss">El orden se aplica a tu catálogo en la vista <strong>Todas</strong>. Usa las flechas o el botón superior para mover cada producto.</p>
         <div class="mt-3 divide-y divide-ink/5 overflow-hidden rounded-xl border border-ink/5">
           ${products.map((product, index) => `
-            <div class="flex items-center gap-2 px-3 py-2.5">
+            <div class="flex items-center gap-1.5 px-3 py-2.5 sm:gap-2">
               <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#F4F5F7] text-[10px] font-semibold text-moss">${index + 1}</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium">${Utils.esc(product.name)}</p>
                 <p class="text-[10px] text-moss">${Utils.esc(product.category)}</p>
               </div>
+              <button type="button" data-action="product-move" data-id="${product.id}" data-dir="top" ${index === 0 ? 'disabled' : ''}
+                aria-label="Mover ${Utils.esc(product.name)} al principio" title="Mover al principio"
+                class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('top', 'h-4 w-4')}</button>
               <button type="button" data-action="product-move" data-id="${product.id}" data-dir="up" ${index === 0 ? 'disabled' : ''}
                 aria-label="Subir ${Utils.esc(product.name)}" title="Subir"
                 class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
@@ -933,6 +933,16 @@ const OwnerUI = (() => {
   };
 
   /* ---------- Modal de producto (crear / editar) ---------- */
+  const productLinkRow = (url = '') => `
+    <div data-product-link-row class="flex items-center gap-2">
+      <input name="linkUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Enlace del producto" />
+      <button type="button" data-action="product-link-remove" aria-label="Quitar enlace"
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
+        ${Utils.icon('trash', 'h-4 w-4')}
+      </button>
+    </div>`;
+
   const openProduct = (productId = null) => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
@@ -950,6 +960,8 @@ const OwnerUI = (() => {
       ...Object.keys(ALTOGO.categories),
       ...(business ? categoriesOf(business) : [])
     ]));
+    const links = product && Array.isArray(product.links) ? product.links : [];
+    const linkRows = links.length ? links : [''];
 
     const body = `
       <form data-form="product-save" class="space-y-4">
@@ -961,6 +973,19 @@ const OwnerUI = (() => {
             <datalist id="categorias-sugeridas">${categories.map((category) => `<option value="${Utils.esc(category)}"></option>`).join('')}</datalist>`)}
           ${field('Imagen (URL opcional)', `<input name="image" class="${inputCls}" value="${product ? Utils.esc(product.image) : ''}" placeholder="https://…" />`, 'sm:col-span-2')}
         </div>
+
+        <section class="rounded-2xl border border-ink/10 bg-[#F7F8FA] p-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-moss">Enlaces del producto</p>
+              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Hasta 8 enlaces opcionales, por ejemplo a una ficha, red social o publicación.</p>
+            </div>
+            <button type="button" data-action="product-link-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
+              ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar enlace
+            </button>
+          </div>
+          <div id="product-link-rows" class="mt-2.5 space-y-2">${linkRows.map(productLinkRow).join('')}</div>
+        </section>
 
         <p class="rounded-xl bg-[#F7F8FA] px-3 py-2.5 text-[11px] leading-relaxed text-moss">
           <strong class="text-ink">Medida recomendada: 1200 × 900 px (4:3).</strong>
@@ -1044,6 +1069,42 @@ const OwnerUI = (() => {
   Events.onAction('owner-order', () => openOrder());
   Events.onAction('owner-analytics', () => openAnalytics());
   Events.onAction('delete-product', (el) => openDeleteProduct(el.dataset.id));
+
+  Events.onAction('product-link-add', () => {
+    const rows = document.getElementById('product-link-rows');
+    if (!rows) return;
+    if (rows.querySelectorAll('[data-product-link-row]').length >= 8) {
+      return Utils.toast('Puedes agregar hasta 8 enlaces por producto.', 'warning');
+    }
+    rows.insertAdjacentHTML('beforeend', productLinkRow());
+    const added = rows.querySelector('[data-product-link-row]:last-child input[name="linkUrl"]');
+    if (added) added.focus();
+  });
+
+  Events.onAction('product-link-remove', (el) => {
+    const row = el.closest('[data-product-link-row]');
+    if (row) row.remove();
+  });
+
+  Events.onAction('category-move', (el) => {
+    const row = el.closest('[data-category-row]');
+    const container = row ? row.parentElement : null;
+    if (!row || !container) return;
+
+    if (el.dataset.dir === 'up' && row.previousElementSibling) {
+      container.insertBefore(row, row.previousElementSibling);
+    } else if (el.dataset.dir === 'down' && row.nextElementSibling) {
+      container.insertBefore(row.nextElementSibling, row);
+    }
+
+    const rows = Array.from(container.querySelectorAll('[data-category-row]'));
+    rows.forEach((item, index) => {
+      const up = item.querySelector('[data-action="category-move"][data-dir="up"]');
+      const down = item.querySelector('[data-action="category-move"][data-dir="down"]');
+      if (up) up.disabled = index === 0;
+      if (down) down.disabled = index === rows.length - 1;
+    });
+  });
 
   Events.onAction('product-move', async (el) => {
     try {
@@ -1144,6 +1205,8 @@ const OwnerUI = (() => {
     const data = new FormData(form);
     const renames = [];
     const targets = [];
+    const normalizedTargets = [];
+    const previousOrder = categoriesOf(business);
 
     for (const [key, value] of data.entries()) {
       if (!key.startsWith('cat::')) continue;
@@ -1151,16 +1214,22 @@ const OwnerUI = (() => {
       const to = String(value).trim();
       if (!to) return Utils.toast('Las categorías no pueden quedar vacías.', 'error');
       const normalized = Utils.normalize(to);
-      if (targets.includes(normalized)) return Utils.toast(`La categoría “${to}” está repetida.`, 'error');
-      targets.push(normalized);
+      if (normalizedTargets.includes(normalized)) return Utils.toast(`La categoría “${to}” está repetida.`, 'error');
+      normalizedTargets.push(normalized);
+      targets.push(to);
       if (from !== to) renames.push([from, to]);
     }
+
+    if (!targets.length) return Utils.toast('No hay categorías para guardar.', 'error');
+    const changedOrder = targets.some((category, index) => category !== previousOrder[index]);
 
     try {
       for (const [from, to] of renames) {
         await Store.renameCategory(business.slug, from, to);
       }
-      Utils.toast(renames.length ? 'Categorías actualizadas.' : 'No hubo cambios.');
+      await Store.saveCategoryOrder(business.slug, targets);
+      if (renames.length) Storefront.CatalogState.category = 'Todas';
+      Utils.toast(renames.length || changedOrder ? 'Categorías actualizadas.' : 'No hubo cambios.');
       Utils.closeModal();
       App.render();
     } catch (error) {
@@ -1179,17 +1248,30 @@ const OwnerUI = (() => {
     const price = Number(data.get('price'));
     const image = String(data.get('image') || '').trim();
     const mode = String(data.get('stockMode') || 'qty');
+    const links = [];
+    const seenLinks = new Set();
 
     if (!name) return Utils.toast('El producto necesita un nombre.', 'error');
     if (!Number.isFinite(price) || price <= 0) return Utils.toast('Indica un precio mayor a cero.', 'error');
     if (!category) return Utils.toast('Indica una categoría.', 'error');
     if (!isHttpUrl(image)) return Utils.toast('La URL de la imagen debe empezar con http:// o https://', 'error');
 
+    for (const rawLink of data.getAll('linkUrl')) {
+      const link = String(rawLink || '').trim();
+      if (!link) continue;
+      if (!isHttpUrl(link)) return Utils.toast('Cada enlace debe empezar con http:// o https://', 'error');
+      if (link.length > 1000) return Utils.toast('Uno de los enlaces es demasiado largo.', 'error');
+      if (seenLinks.has(link)) return Utils.toast('No repitas el mismo enlace en un producto.', 'error');
+      seenLinks.add(link);
+      links.push(link);
+    }
+    if (links.length > 8) return Utils.toast('Puedes agregar hasta 8 enlaces por producto.', 'error');
+
     const stock = mode === 'bool'
       ? data.get('available') === 'on'
       : Math.max(0, Math.floor(Number(data.get('qty')) || 0));
 
-    const payload = { name, category, price, image, stock };
+    const payload = { name, category, price, image, links, stock };
 
     try {
       if (id) {

@@ -216,7 +216,26 @@ const Store = (() => {
             price: Math.max(0, Math.floor(Number(zone.price) || 0))
           }))
       : [];
+    business.categoryOrder = Array.isArray(business.categoryOrder)
+      ? Array.from(new Set(
+          business.categoryOrder
+            .map((category) => String(category || '').trim())
+            .filter((category) => category.length >= 2 && category.length <= 40)
+        ))
+      : [];
     return business;
+  };
+
+  const normalizeProduct = (productItem) => {
+    if (!productItem || typeof productItem !== 'object') return productItem;
+    productItem.links = Array.isArray(productItem.links)
+      ? Array.from(new Set(
+          productItem.links
+            .map((link) => String(link || '').trim())
+            .filter(Boolean)
+        )).slice(0, 8)
+      : [];
+    return productItem;
   };
 
   const load = () => {
@@ -238,13 +257,17 @@ const Store = (() => {
             if (typeof business.open !== 'boolean') business.open = !wasInactive;
             normalizeBusiness(business);
           });
+          parsed.products.forEach(normalizeProduct);
           return parsed;
         }
       }
     } catch (error) {
       console.warn('[AltoGO] No se pudo leer localStorage, se usan datos de demostración.', error);
     }
-    return clone(SEED_DATA);
+    const seed = clone(SEED_DATA);
+    seed.businesses.forEach(normalizeBusiness);
+    seed.products.forEach(normalizeProduct);
+    return seed;
   };
 
   const persist = () => {
@@ -265,6 +288,7 @@ const Store = (() => {
     db.businesses = Array.isArray(data.businesses) ? data.businesses : [];
     db.businesses.forEach(normalizeBusiness);
     db.products = Array.isArray(data.products) ? data.products : [];
+    db.products.forEach(normalizeProduct);
     db.users = Array.isArray(data.users) ? data.users : [];
     db.orders = [];
     db.global = data.global || { visits: 0, whatsappClicks: 0 };
@@ -328,6 +352,19 @@ const Store = (() => {
 
   const products = (slug) =>
     db.products.filter((product) => product.businessSlug === slug);
+
+  // Categorías presentes, respetando el orden propio guardado por el comercio.
+  const categoriesOf = (slug) => {
+    const present = Array.from(new Set(products(slug).map((productItem) => productItem.category)));
+    const order = Array.isArray(business(slug)?.categoryOrder) ? business(slug).categoryOrder : [];
+    const position = new Map(order.map((category, index) => [category, index]));
+    return present.sort((a, b) => {
+      const ia = position.has(a) ? position.get(a) : Number.POSITIVE_INFINITY;
+      const ib = position.has(b) ? position.get(b) : Number.POSITIVE_INFINITY;
+      if (ia === ib) return a.localeCompare(b, 'es');
+      return ia - ib;
+    });
+  };
 
   const product = (id) => db.products.find((item) => item.id === id) || null;
 
@@ -686,6 +723,27 @@ const Store = (() => {
     return changed;
   };
 
+  // Guarda el orden propio de las categorías de un comercio.
+  const saveCategoryOrder = async (slug, categories) => {
+    const ordered = Array.from(new Set(
+      (Array.isArray(categories) ? categories : [])
+        .map((category) => String(category || '').trim())
+        .filter(Boolean)
+    ));
+
+    if (Backend.enabled) {
+      await Backend.rpc('api_owner_save_category_order', { p_categories: ordered });
+      await refresh();
+      return ordered;
+    }
+
+    const target = business(slug);
+    if (!target) return [];
+    target.categoryOrder = ordered;
+    persist();
+    return ordered;
+  };
+
   // Credenciales de acceso de un comercio (solo super admin).
   const updateAccess = async (businessSlug, data) => {
     if (Backend.enabled) {
@@ -749,7 +807,8 @@ const Store = (() => {
         p_category: data.category,
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
-        p_stock: data.stock
+        p_stock: data.stock,
+        p_links: Array.isArray(data.links) ? data.links : []
       });
       await refresh();
       return created;
@@ -761,8 +820,10 @@ const Store = (() => {
       category: data.category,
       price: Number(data.price) || 0,
       image: data.image || '',
+      links: Array.isArray(data.links) ? data.links : [],
       stock: data.stock
     };
+    normalizeProduct(created);
     db.products.push(created);
     persist();
     return created;
@@ -776,7 +837,8 @@ const Store = (() => {
         p_category: data.category,
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
-        p_stock: data.stock
+        p_stock: data.stock,
+        p_links: Array.isArray(data.links) ? data.links : []
       });
       await refresh();
       return updated;
@@ -788,8 +850,10 @@ const Store = (() => {
       category: data.category,
       price: Number(data.price) || 0,
       image: data.image || '',
+      links: Array.isArray(data.links) ? data.links : [],
       stock: data.stock
     });
+    normalizeProduct(target);
     persist();
     return target;
   };
@@ -818,6 +882,18 @@ const Store = (() => {
 
     const siblings = db.products.filter((item) => item.businessSlug === product.businessSlug);
     const position = siblings.findIndex((item) => item.id === id);
+
+    if (direction === 'top') {
+      if (position <= 0) return false;
+      const firstSibling = siblings[0];
+      const index = db.products.findIndex((item) => item.id === id);
+      db.products.splice(index, 1);
+      const firstIndex = db.products.findIndex((item) => item.id === firstSibling.id);
+      db.products.splice(firstIndex, 0, product);
+      persist();
+      return true;
+    }
+
     const targetProduct = siblings[position + (direction === 'up' ? -1 : 1)];
     if (!targetProduct) return false;
 
@@ -856,10 +932,10 @@ const Store = (() => {
     get data() { return db; },
     refresh, applySnapshot, loadView,
     businesses, listedBusinesses, business, deliveryInfo, deliveryLabel,
-    products, product, productCount, productCountOf,
+    products, categoriesOf, product, productCount, productCountOf,
     stock, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
     findUser, userForBusiness, usernameTaken,
-    createBusiness, updateBusiness, updateBusinessProfile, renameCategory, updateAccess,
+    createBusiness, updateBusiness, updateBusinessProfile, renameCategory, saveCategoryOrder, updateAccess,
     moveBusiness, deleteBusiness, setBusinessStatus, slugTaken,
     createProduct, updateProduct, deleteProduct,
     moveProduct,
