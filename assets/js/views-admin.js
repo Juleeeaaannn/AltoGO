@@ -714,9 +714,9 @@ const OwnerUI = (() => {
   const zoneRow = (zone = {}) => `
     <div data-zone-row class="flex items-center gap-2">
       <input name="zoneName" value="${Utils.esc(zone.name || '')}" placeholder="Ej. Centro" maxlength="60"
-        class="${inputCls}" aria-label="Nombre de la zona" />
+        class="${inputCls} min-w-0 flex-1" aria-label="Nombre de la zona" />
       <input name="zonePrice" type="number" min="0" step="1" value="${zone.price ?? ''}" placeholder="Precio"
-        class="${inputCls} w-28 shrink-0" aria-label="Precio de la zona" />
+        class="${inputCls} w-24 shrink-0" aria-label="Precio de la zona" />
       <button type="button" data-action="zone-remove" aria-label="Quitar zona"
         class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
         ${Utils.icon('trash', 'h-4 w-4')}
