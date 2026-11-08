@@ -46,6 +46,48 @@ const Storefront = (() => {
     </div>`;
   };
 
+  const productImages = (product) => {
+    const images = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
+    if (!images.length && product.image) images.push(product.image);
+    return images.slice(0, 8);
+  };
+
+  const productGallery = (product) => {
+    const images = productImages(product);
+    if (images.length <= 1) {
+      return `<div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
+        <div class="aspect-[4/3] w-full">${productMedia(product, 'text-6xl sm:text-7xl')}</div>
+      </div>`;
+    }
+
+    return `
+      <div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
+        <div data-gallery data-index="0" data-count="${images.length}">
+          <div class="relative aspect-[4/3] w-full overflow-hidden bg-white">
+            ${images.map((image, index) => `
+              <img data-gallery-slide="${index}" src="${Utils.esc(image)}" alt="${Utils.esc(product.name)} — imagen ${index + 1}"
+                class="absolute inset-0 h-full w-full object-contain p-1.5 transition-opacity duration-200 ${index === 0 ? 'opacity-100' : 'pointer-events-none opacity-0'}" />`).join('')}
+
+            <button type="button" data-action="gallery-prev" aria-label="Imagen anterior"
+              class="absolute left-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-ink/5 bg-white/90 text-ink shadow-sm backdrop-blur transition hover:bg-white">
+              ${Utils.icon('back', 'h-4 w-4')}
+            </button>
+            <button type="button" data-action="gallery-next" aria-label="Imagen siguiente"
+              class="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-ink/5 bg-white/90 text-ink shadow-sm backdrop-blur transition hover:bg-white">
+              ${Utils.icon('forward', 'h-4 w-4')}
+            </button>
+            <span data-gallery-counter class="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2 py-0.5 text-[10px] font-semibold tabular text-white backdrop-blur">1 / ${images.length}</span>
+          </div>
+
+          <div class="flex items-center justify-center gap-1.5 px-3 py-2.5">
+            ${images.map((_, index) => `
+              <button type="button" data-action="gallery-dot" data-index="${index}" aria-label="Ir a la imagen ${index + 1}"
+                class="h-2 rounded-full transition-all ${index === 0 ? 'w-5 bg-ink' : 'w-2 bg-ink/20'}"></button>`).join('')}
+          </div>
+        </div>
+      </div>`;
+  };
+
   /* ------------------------------------------------------------------------
      HOME
      ------------------------------------------------------------------------ */
@@ -54,15 +96,13 @@ const Storefront = (() => {
     Cart.detach();
 
     const businesses = Store.listedBusinesses();
-    const active = businesses.filter((b) => b.open);
-    const activeProducts = active.reduce((sum, b) => sum + Store.products(b.slug).length, 0);
 
     const card = (business) => {
-      const products = Store.products(business.slug);
+      const productCount = Store.productCountOf(business);
       const status = Utils.openMeta(business.open);
       const isOpen = business.open;
       return `
-        <a href="#/negocio/${encodeURIComponent(business.slug)}"
+        <a href="/negocio/${encodeURIComponent(business.slug)}"
           class="group flex min-w-0 items-center gap-3 rounded-2xl border border-ink/5 bg-white p-3.5 transition duration-200 hover:border-ink/15 hover:shadow-[0_16px_35px_-26px_rgba(11,21,17,.5)] sm:gap-4 sm:p-4">
           ${logoMark(business, 'h-12 w-12 sm:h-14 sm:w-14', 'text-sm sm:text-base')}
           <div class="min-w-0 flex-1">
@@ -72,9 +112,9 @@ const Storefront = (() => {
             </div>
             <p class="mt-0.5 truncate text-[11px] text-moss sm:text-xs">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
             <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-moss sm:text-[11px]">
-              <span>${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
+              <span>${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
               <span class="h-1 w-1 rounded-full bg-ink/15"></span>
-              <span>Envío ${Utils.money(business.shippingCost)}</span>
+              <span>${Store.deliveryLabel(business)}</span>
               ${isOpen ? '<span class="hidden items-center gap-1 sm:inline-flex"><span class="h-1 w-1 rounded-full bg-emerald-500"></span> Abierto</span>' : ''}
             </div>
           </div>
@@ -89,22 +129,21 @@ const Storefront = (() => {
         <!-- Header público (sin accesos administrativos) -->
         <header class="sticky top-0 z-40 border-b border-ink/5 bg-white/90 backdrop-blur-xl">
           <div class="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-            <a href="#/" class="flex items-center gap-2.5">
-              <span class="relative grid h-9 w-9 place-items-center rounded-xl bg-ink font-display text-lg font-bold text-cream">
-                A<span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-lime"></span>
-              </span>
-              <span class="font-display text-xl font-bold tracking-tight">Alto<span class="text-[#4B7A24]">GO</span></span>
+            <a href="/" class="flex items-center gap-2.5">
+              
+              <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
+
             </a>
             <span class="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white px-3 py-1.5 text-[11px] font-medium text-moss">
               ${Utils.icon('whatsapp', 'h-3.5 w-3.5 text-[#1FA855]')}
-              <span class="hidden sm:inline">Pedidos por</span> WhatsApp
-            </span>
+              <span class="hidden sm:inline">¿Quieres sumar tu negocio?</span> 
+              <a href="https://wa.me/5492646238873" target="_blank" rel="noopener noreferrer" class="font-semibold text-ink underline underline-offset-2">Escribinos</a>
           </div>
         </header>
 
         <main class="mx-auto max-w-6xl px-4 pb-16 pt-5 sm:px-6 sm:pt-8">
           <!-- Hero compacto -->
-          <section class="relative overflow-hidden rounded-2xl bg-ink px-6 py-8 text-white sm:px-10 sm:py-10">
+          <section class="relative overflow-hidden rounded-2xl bg-[#00197D] px-6 py-8 text-white sm:px-10 sm:py-10">
             <div class="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-lime/15 blur-3xl"></div>
             <div class="relative max-w-2xl">
               <h1 class="font-display text-3xl font-semibold leading-tight sm:text-5xl">
@@ -114,8 +153,6 @@ const Storefront = (() => {
                 Elige un comercio, arma tu pedido y envía tu ubicación por WhatsApp.
               </p>
               <div class="mt-5 flex flex-wrap items-center gap-2 text-[11px]">
-                <span class="rounded-full bg-white/10 px-3 py-1.5">${active.length} comercios abiertos</span>
-                <span class="rounded-full bg-white/10 px-3 py-1.5">${activeProducts} productos</span>
                 <span class="rounded-full bg-white/10 px-3 py-1.5">Envío local</span>
               </div>
             </div>
@@ -143,7 +180,7 @@ const Storefront = (() => {
   const publicFooter = () => `
     <footer class="border-t border-ink/5 bg-white">
       <div class="mx-auto flex max-w-6xl flex-col items-start justify-between gap-3 px-4 py-6 text-[11px] text-moss sm:flex-row sm:items-center sm:px-6">
-        <p><span class="font-display text-sm font-semibold text-ink">AltoGO</span> · ${ALTOGO.brand.tagline}</p>
+        <p><span class="font-display text-sm font-semibold text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span> · ${ALTOGO.brand.tagline}</p>
         <p>Pedidos y entregas coordinados por WhatsApp con cada comercio.</p>
       </div>
     </footer>`;
@@ -199,18 +236,7 @@ const Storefront = (() => {
     });
   };
 
-  const categoriesOf = (business) => {
-    const present = Array.from(new Set(Store.products(business.slug).map((p) => p.category)));
-    const order = Object.keys(ALTOGO.categories);
-    return present.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b, 'es');
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  };
+  const categoriesOf = (business) => Store.categoriesOf(business.slug);
 
   const chipsHTML = (business) => {
     const categories = categoriesOf(business);
@@ -290,7 +316,7 @@ const Storefront = (() => {
         <!-- Barra superior: "Atrás" siempre visible -->
         <header class="sticky top-0 z-40 border-b border-ink/5 bg-white/90 backdrop-blur-xl">
           <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
-            <a href="#/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
+            <a href="/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
               <span class="grid h-7 w-7 place-items-center rounded-full bg-cream">${Utils.icon('back', 'h-3.5 w-3.5')}</span>
               <span>Todos los comercios</span>
             </a>
@@ -304,11 +330,11 @@ const Storefront = (() => {
                 </button>` : ''}
               ${superMode ? `
                 <span class="hidden items-center gap-1.5 rounded-full bg-ink px-3 py-1.5 text-[11px] font-semibold text-lime sm:inline-flex">${Utils.icon('shield', 'h-3.5 w-3.5')} Super admin</span>
-                <a href="#/admin" class="grid h-9 w-9 place-items-center rounded-full border border-ink/10 bg-white text-moss transition hover:text-ink" aria-label="Volver al panel" title="Volver al panel">
+                <a href="/admin" class="grid h-9 w-9 place-items-center rounded-full border border-ink/10 bg-white text-moss transition hover:text-ink" aria-label="Volver al panel" title="Volver al panel">
                   ${Utils.icon('chart', 'h-4 w-4')}
                 </a>` : ''}
               ${!ownerMode && !superMode ? `
-                <span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-ink font-display text-sm font-bold text-cream">A</span>` : ''}
+                 <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>` : ''}
             </div>
           </div>
         </header>
@@ -325,7 +351,7 @@ const Storefront = (() => {
                 </div>
                 <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-moss sm:text-sm">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
                 <div class="mt-3 flex flex-wrap gap-1.5 text-[11px] text-moss">
-                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${Utils.icon('bag', 'h-3.5 w-3.5')} Envío ${Utils.money(business.shippingCost)}</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${Utils.icon('bag', 'h-3.5 w-3.5')} ${Store.deliveryLabel(business)}</span>
                   <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
                 </div>
               </div>
@@ -381,7 +407,7 @@ const Storefront = (() => {
     <div class="grid min-h-[100dvh] place-items-center bg-white px-4 py-10">
       <div class="w-full max-w-md">
         <div class="rounded-3xl border border-ink/5 bg-white p-7 text-center shadow-soft">
-          <span class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ink font-display text-lg font-bold text-cream">A</span>
+         <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
           ${content}
         </div>
         <p class="mt-5 text-center text-[11px] text-moss">AltoGO · ${ALTOGO.brand.tagline}</p>
@@ -389,7 +415,7 @@ const Storefront = (() => {
     </div>`;
 
   const backButton = `
-    <a href="#/" class="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
+    <a href="/" class="mt-6 inline-flex items-center justify-center gap-2 rounded-xl bg-ink px-5 py-3 text-sm font-semibold text-white">
       ${Utils.icon('back', 'h-4 w-4')} Volver a todos los comercios
     </a>`;
 
@@ -489,9 +515,7 @@ const Storefront = (() => {
       subtitle: product.category,
       size: 'lg',
       body: `
-        <div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
-          <div class="aspect-[4/3] w-full">${productMedia(product, 'text-6xl sm:text-7xl')}</div>
-        </div>
+        ${productGallery(product)}
         <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Precio</p>
@@ -507,6 +531,45 @@ const Storefront = (() => {
           Puedes ajustar la cantidad desde el carrito. El pedido se coordina por WhatsApp con el comercio.
         </p>`
     });
+  });
+
+  const moveGallery = (gallery, index) => {
+    if (!gallery) return;
+    const count = Number(gallery.dataset.count) || 0;
+    if (count < 2) return;
+    const next = ((index % count) + count) % count;
+    gallery.dataset.index = String(next);
+
+    gallery.querySelectorAll('[data-gallery-slide]').forEach((slide, slideIndex) => {
+      slide.classList.toggle('opacity-100', slideIndex === next);
+      slide.classList.toggle('pointer-events-none', slideIndex !== next);
+      slide.classList.toggle('opacity-0', slideIndex !== next);
+    });
+    gallery.querySelectorAll('[data-action="gallery-dot"]').forEach((dot, dotIndex) => {
+      dot.classList.toggle('w-5', dotIndex === next);
+      dot.classList.toggle('bg-ink', dotIndex === next);
+      dot.classList.toggle('w-2', dotIndex !== next);
+      dot.classList.toggle('bg-ink/20', dotIndex !== next);
+      if (dotIndex === next) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+    const counter = gallery.querySelector('[data-gallery-counter]');
+    if (counter) counter.textContent = `${next + 1} / ${count}`;
+  };
+
+  Events.onAction('gallery-prev', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(gallery.dataset.index) - 1);
+  });
+
+  Events.onAction('gallery-next', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(gallery.dataset.index) + 1);
+  });
+
+  Events.onAction('gallery-dot', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(el.dataset.index));
   });
 
   Events.onAction('product-modal-add', (el) => {

@@ -6,8 +6,80 @@
    Ambos comparten helpers de formularios y modales.
    ========================================================================== */
 
+const AnalyticsView = (() => {
+  const loading = () => `
+    <div class="rounded-2xl border border-ink/5 bg-white px-5 py-10 text-center">
+      <p class="text-sm font-medium">Cargando ventas…</p>
+      <p class="mt-1 text-[11px] text-moss">Estamos sumando los pedidos de los últimos movimientos.</p>
+    </div>`;
+
+  const error = (message) => `
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-6 text-center text-rose-800">
+      <p class="text-sm font-semibold">No pudimos cargar las ventas</p>
+      <p class="mt-1 text-[11px]">${Utils.esc(message || 'Intenta de nuevo.')}</p>
+      <button type="button" data-action="analytics-refresh" class="mt-3 rounded-lg bg-rose-700 px-3 py-2 text-xs font-semibold text-white">Reintentar</button>
+    </div>`;
+
+  const salesCards = (totals = {}) => `
+    <div class="grid gap-3 sm:grid-cols-3">
+      <div class="rounded-2xl border border-ink/5 bg-white p-5">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Unidades vendidas</p>
+        <p class="mt-2 font-display text-3xl font-semibold tabular">${Utils.num(totals.items || 0)}</p>
+        <p class="mt-1 text-[11px] text-moss">Productos incluidos en pedidos</p>
+      </div>
+      <div class="rounded-2xl border border-ink/5 bg-white p-5">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Ventas de productos</p>
+        <p class="mt-2 font-display text-3xl font-semibold tabular">${Utils.money(totals.revenue || 0)}</p>
+        <p class="mt-1 text-[11px] text-moss">Sin contar el costo de envío</p>
+      </div>
+      <div class="rounded-2xl border border-ink/5 bg-white p-5">
+        <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Pedidos</p>
+        <p class="mt-2 font-display text-3xl font-semibold tabular">${Utils.num(totals.orders || 0)}</p>
+        <p class="mt-1 text-[11px] text-moss">Pedidos con al menos un producto</p>
+      </div>
+    </div>`;
+
+  const productRanking = (data, { showBusiness = false, limit = 10 } = {}) => {
+    const products = (data && Array.isArray(data.products) ? data.products : []).slice(0, limit);
+    const max = products.length ? Math.max(...products.map((row) => Number(row.qty) || 0)) : 1;
+
+    return `
+      <section class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
+        <div class="flex items-center justify-between gap-3 border-b border-ink/5 px-5 py-4">
+          <div>
+            <h2 class="font-display text-base font-semibold">Productos más vendidos</h2>
+            <p class="mt-0.5 text-[11px] text-moss">Ordenados por unidades vendidas.</p>
+          </div>
+          <span class="shrink-0 text-[10px] font-medium uppercase tracking-wide text-moss">${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
+        </div>
+        ${products.length ? `<div class="divide-y divide-ink/5">${products.map((row, index) => {
+          const qty = Number(row.qty) || 0;
+          const width = Math.max(5, Math.round((qty / max) * 100));
+          return `<div class="px-4 py-3 sm:px-5">
+            <div class="flex items-center gap-3">
+              <span class="grid h-7 w-7 shrink-0 place-items-center rounded-full ${index === 0 ? 'bg-lime text-ink' : 'bg-[#F4F5F7] text-moss'} text-[11px] font-bold">${index + 1}</span>
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-sm font-semibold">${Utils.esc(row.name || 'Producto')}</p>
+                <p class="text-[10px] text-moss">${showBusiness ? Utils.esc(row.businessName || '') : `Última venta: ${Utils.dateLabel(row.lastSoldAt)}`}</p>
+              </div>
+              <div class="shrink-0 text-right">
+                <p class="text-sm font-semibold tabular">${Utils.num(qty)} ${qty === 1 ? 'unidad' : 'unidades'}</p>
+                <p class="text-[10px] text-moss tabular">${Utils.money(row.revenue || 0)}</p>
+              </div>
+            </div>
+            <div class="ml-10 mt-2 h-1.5 overflow-hidden rounded-full bg-[#F4F5F7]">
+              <div class="h-full rounded-full bg-ink" style="width:${width}%"></div>
+            </div>
+          </div>`;
+        }).join('')}</div>` : `<div class="px-4 py-10 text-center text-xs text-moss">Todavía no hay ventas registradas. Los pedidos enviados por WhatsApp aparecerán acá.</div>`}
+      </section>`;
+  };
+
+  return { loading, error, salesCards, productRanking };
+})();
+
 const AdminView = (() => {
-  const state = { tab: 'comercios' };
+  const state = { tab: 'comercios', analytics: null, analyticsLoading: false, analyticsError: '' };
 
   /* ---------- Clases reutilizadas en formularios ---------- */
   const inputCls = 'w-full rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-moss/50 focus:border-ink focus:ring-2 focus:ring-ink/5';
@@ -69,7 +141,7 @@ const AdminView = (() => {
         title="Bajar" aria-label="Bajar ${Utils.esc(business.name)}"
         class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('down', 'h-4 w-4')}</button>
       <span class="mx-1 h-5 w-px bg-ink/5"></span>
-      <a href="#/negocio/${encodeURIComponent(business.slug)}" title="Ver catálogo" aria-label="Ver catálogo"
+      <a href="/negocio/${encodeURIComponent(business.slug)}" title="Ver catálogo" aria-label="Ver catálogo"
         class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink">${Utils.icon('eye', 'h-4 w-4')}</a>
       <button type="button" data-action="delete-business" data-id="${business.id}" title="Eliminar" aria-label="Eliminar"
         class="grid h-8 w-8 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">${Utils.icon('trash', 'h-4 w-4')}</button>
@@ -148,7 +220,7 @@ const AdminView = (() => {
       <div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
         <div class="border-b border-ink/5 px-5 py-4">
           <h2 class="font-display text-base font-semibold">Cuentas de comercio</h2>
-          <p class="mt-0.5 text-xs text-moss">Cada dueño entra en <code class="rounded bg-[#F4F5F7] px-1">#/ingreso</code> con estas credenciales.</p>
+          <p class="mt-0.5 text-xs text-moss">Cada dueño entra en <code class="rounded bg-[#F4F5F7] px-1">/ingreso</code> con estas credenciales.</p>
         </div>
         <div class="divide-y divide-ink/5">
           ${businesses.map((business) => {
@@ -175,10 +247,16 @@ const AdminView = (() => {
   const analiticasTab = () => {
     const global = Store.data.global;
     const businesses = Store.businesses();
+    const analytics = state.analytics;
     const catalogVisits = businesses.reduce((sum, item) => sum + Number(item.visits || 0), 0);
     const totalVisits = Number(global.visits || 0) + catalogVisits;
     const conversion = Utils.pct(global.whatsappClicks, totalVisits);
     const sorted = [...businesses].sort((a, b) => Number(b.visits || 0) - Number(a.visits || 0));
+    const topByBusiness = new Map();
+    (analytics && Array.isArray(analytics.products) ? analytics.products : []).forEach((row) => {
+      const current = topByBusiness.get(row.businessSlug);
+      if (!current || Number(row.qty) > Number(current.qty)) topByBusiness.set(row.businessSlug, row);
+    });
 
     const card = (label, value, sub) => `
       <div class="rounded-2xl border border-ink/5 bg-white p-5">
@@ -192,6 +270,16 @@ const AdminView = (() => {
         ${card('Visitas a la página', Utils.num(global.visits), 'Aperturas del inicio de AltoGO')}
         ${card('Visitas a catálogos', Utils.num(catalogVisits), 'Suma de todos los comercios')}
         ${card('Clics a WhatsApp', Utils.num(global.whatsappClicks), `Conversión ${conversion}% del total`)}
+      </div>
+
+      <div class="mt-4">
+        ${state.analyticsLoading
+          ? AnalyticsView.loading()
+          : state.analyticsError
+            ? AnalyticsView.error(state.analyticsError)
+            : analytics
+              ? `${AnalyticsView.salesCards(analytics.totals)}<div class="mt-4">${AnalyticsView.productRanking(analytics, { showBusiness: true, limit: 10 })}</div>`
+              : ''}
       </div>
 
       <div class="mt-4 overflow-hidden rounded-2xl border border-ink/5 bg-white">
@@ -209,11 +297,13 @@ const AdminView = (() => {
                 <th class="px-5 py-3 font-semibold">Clics WhatsApp</th>
                 <th class="px-5 py-3 font-semibold">Conversión</th>
                 <th class="px-5 py-3 font-semibold">Productos</th>
+                <th class="px-5 py-3 font-semibold">Más vendido</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-ink/5">
               ${sorted.map((business) => {
                 const conv = Utils.pct(business.whatsappClicks, business.visits);
+                const top = topByBusiness.get(business.slug);
                 return `<tr class="transition hover:bg-[#FAFBFC]">
                   <td class="px-5 py-3">
                     <div class="flex items-center gap-3">
@@ -224,9 +314,10 @@ const AdminView = (() => {
                   <td class="px-5 py-3 tabular">${Utils.num(business.visits)}</td>
                   <td class="px-5 py-3 tabular">${Utils.num(business.whatsappClicks)}</td>
                   <td class="px-5 py-3 tabular">${conv}%</td>
-                  <td class="px-5 py-3 tabular">${Store.products(business.slug).length}</td>
+                  <td class="px-5 py-3 tabular">${Store.productCountOf(business)}</td>
+                  <td class="px-5 py-3">${top ? `<p class="max-w-[13rem] truncate text-xs font-medium">${Utils.esc(top.name)}</p><p class="text-[10px] text-moss tabular">${Utils.num(top.qty)} unidades</p>` : '<span class="text-xs text-moss">Sin ventas</span>'}</td>
                 </tr>`;
-              }).join('') || '<tr><td colspan="5" class="px-5 py-8 text-center text-xs text-moss">Sin datos todavía.</td></tr>'}
+              }).join('') || '<tr><td colspan="6" class="px-5 py-8 text-center text-xs text-moss">Sin datos todavía.</td></tr>'}
             </tbody>
           </table>
         </div>
@@ -237,6 +328,7 @@ const AdminView = (() => {
             <div class="min-w-0 flex-1">
               <p class="truncate text-sm font-semibold">${Utils.esc(business.name)}</p>
               <p class="text-[10px] text-moss">${Utils.num(business.whatsappClicks)} clics · ${Utils.pct(business.whatsappClicks, business.visits)}%</p>
+              <p class="truncate text-[10px] text-moss">${topByBusiness.get(business.slug) ? `Top: ${Utils.esc(topByBusiness.get(business.slug).name)}` : 'Sin ventas'}</p>
             </div>
             <div class="text-right">
               <p class="text-sm font-semibold tabular">${Utils.num(business.visits)}</p>
@@ -245,6 +337,22 @@ const AdminView = (() => {
           </div>`).join('') || '<p class="px-4 py-8 text-center text-xs text-moss">Sin datos todavía.</p>'}
         </div>
       </div>`;
+  };
+
+  const loadAdminAnalytics = async () => {
+    if (state.analyticsLoading) return;
+    state.analyticsLoading = true;
+    state.analyticsError = '';
+    if (state.tab === 'analiticas') App.render();
+    try {
+      state.analytics = await Store.loadProductAnalytics();
+    } catch (error) {
+      state.analyticsError = error.message || 'No se pudieron cargar las ventas.';
+      state.analytics = null;
+    } finally {
+      state.analyticsLoading = false;
+      if (state.tab === 'analiticas') App.render();
+    }
   };
 
   /* ------------------------------------------------------------------------
@@ -258,7 +366,7 @@ const AdminView = (() => {
     const meta = {
       comercios: { title: 'Comercios', subtitle: 'Controla qué negocios se ven, se ocultan o se eliminan.' },
       accesos: { title: 'Accesos', subtitle: 'Crea y actualiza el usuario de cada comercio.' },
-      analiticas: { title: 'Analíticas', subtitle: 'Visitas de la página y de cada comercio.' }
+      analiticas: { title: 'Analíticas', subtitle: 'Visitas, pedidos y productos más vendidos por comercio.' }
     }[state.tab];
 
     const content = state.tab === 'accesos'
@@ -272,10 +380,8 @@ const AdminView = (() => {
         <!-- Menú lateral (PC) -->
         <aside class="sticky top-0 hidden h-screen w-60 shrink-0 flex-col justify-between border-r border-ink/5 bg-white px-4 py-6 lg:flex">
           <div>
-            <a href="#/admin" class="flex items-center gap-2.5 px-2">
-              <span class="relative grid h-9 w-9 place-items-center rounded-xl bg-ink font-display text-lg font-bold text-white">
-                A<span class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-lime"></span>
-              </span>
+            <a href="/admin" class="flex items-center gap-2.5 px-2">
+              <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
               <div class="leading-tight">
                 <p class="font-display text-lg font-bold">AltoGO</p>
                 <p class="text-[10px] text-moss">Administración</p>
@@ -284,7 +390,7 @@ const AdminView = (() => {
             <nav class="mt-8 space-y-1">${navItems()}</nav>
           </div>
           <div>
-            <a href="#/" class="mb-4 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-moss transition hover:bg-[#F4F5F7] hover:text-ink">
+            <a href="/" class="mb-4 flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm text-moss transition hover:bg-[#F4F5F7] hover:text-ink">
               ${Utils.icon('eye', 'h-4 w-4')} Ver sitio público
             </a>
             <div class="rounded-xl bg-[#F4F5F7] p-3">
@@ -301,12 +407,11 @@ const AdminView = (() => {
           <!-- Barra móvil -->
           <div class="sticky top-0 z-30 border-b border-ink/5 bg-white px-4 pb-3 pt-3 lg:hidden">
             <div class="flex items-center justify-between">
-              <a href="#/admin" class="flex items-center gap-2">
-                <span class="grid h-8 w-8 place-items-center rounded-lg bg-ink font-display text-sm font-bold text-white">A</span>
-                <span class="font-display text-base font-bold">AltoGO</span>
+              <a href="/admin" class="flex items-center gap-2">
+                <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>
               </a>
               <div class="flex items-center gap-1">
-                <a href="#/" class="grid h-8 w-8 place-items-center rounded-lg text-moss" aria-label="Ver sitio público">${Utils.icon('eye', 'h-4 w-4')}</a>
+                <a href="/" class="grid h-8 w-8 place-items-center rounded-lg text-moss" aria-label="Ver sitio público">${Utils.icon('eye', 'h-4 w-4')}</a>
                 <button type="button" data-action="logout" class="grid h-8 w-8 place-items-center rounded-lg text-moss" aria-label="Cerrar sesión">${Utils.icon('logout', 'h-4 w-4')}</button>
               </div>
             </div>
@@ -360,7 +465,7 @@ const AdminView = (() => {
 
           <div class="rounded-2xl border border-ink/10 bg-[#F7F8FA] p-4">
             <p class="flex items-center gap-1.5 text-xs font-semibold">${Utils.icon('users', 'h-3.5 w-3.5')} Acceso del dueño</p>
-            <p class="mt-1 text-[11px] leading-relaxed text-moss">Podrá iniciar sesión en <strong>#/ingreso</strong> para administrar su tienda.</p>
+            <p class="mt-1 text-[11px] leading-relaxed text-moss">Podrá iniciar sesión en <strong>/ingreso</strong> para administrar su tienda.</p>
             <div class="mt-3 grid gap-3 sm:grid-cols-2">
               ${field('Usuario', `<input name="username" required autocapitalize="none" spellcheck="false" class="${inputCls}" placeholder="lapalma" />`)}
               ${field('Contraseña', `<input name="password" required minlength="8" autocomplete="new-password" class="${inputCls}" placeholder="mínimo 8 caracteres" />`)}
@@ -390,7 +495,7 @@ const AdminView = (() => {
             ${field('Usuario', `<input name="username" required autocapitalize="none" spellcheck="false" class="${inputCls}" value="${owner ? Utils.esc(owner.username) : ''}" />`)}
             ${field(Backend.enabled ? 'Nueva contraseña' : 'Contraseña', `<input name="password" ${Backend.enabled ? 'minlength="8"' : 'required minlength="8"'} autocomplete="new-password" class="${inputCls}" value="${!Backend.enabled && owner ? Utils.esc(owner.password) : ''}" placeholder="${Backend.enabled ? 'dejar vacío para mantener' : 'mínimo 8 caracteres'}" />`)}
           </div>
-          <p class="text-[11px] leading-relaxed text-moss">Comparte estas credenciales con el dueño. Entra en <strong>#/ingreso</strong>.</p>
+          <p class="text-[11px] leading-relaxed text-moss">Comparte estas credenciales con el dueño. Entra en <strong>/ingreso</strong>.</p>
           <div class="flex flex-col-reverse gap-2 border-t border-ink/5 pt-4 sm:flex-row sm:justify-end">
             <button type="button" data-action="modal-close" class="${ghostBtn}">Cancelar</button>
             <button type="submit" class="${primaryBtn}">Guardar acceso</button>
@@ -413,7 +518,7 @@ const AdminView = (() => {
             <span class="mt-0.5 shrink-0">${Utils.icon('alert', 'h-4 w-4')}</span>
             <div class="text-xs leading-relaxed">
               <p class="font-semibold">Esta acción no se puede deshacer.</p>
-              <p class="mt-1">Se eliminarán <strong>${Store.products(business.slug).length} productos</strong> y su cuenta de acceso. Si solo quieres dejar de mostrarlo, cámbialo a <strong>Oculto</strong>.</p>
+              <p class="mt-1">Se eliminarán <strong>${Store.productCountOf(business)} productos</strong> y su cuenta de acceso. Si solo quieres dejar de mostrarlo, cámbialo a <strong>Oculto</strong>.</p>
             </div>
           </div>
           <div class="flex flex-col-reverse gap-2 border-t border-ink/5 pt-4 sm:flex-row sm:justify-end">
@@ -430,7 +535,17 @@ const AdminView = (() => {
   Events.onAction('admin-tab', (el, event) => {
     if (event) event.preventDefault();
     state.tab = ['accesos', 'analiticas'].includes(el.dataset.tab) ? el.dataset.tab : 'comercios';
+    state.analytics = null;
+    state.analyticsError = '';
+    state.analyticsLoading = false;
     App.render();
+    if (state.tab === 'analiticas') loadAdminAnalytics();
+  });
+
+  Events.onAction('analytics-refresh', () => {
+    state.analytics = null;
+    state.analyticsError = '';
+    loadAdminAnalytics();
   });
 
   Events.onAction('new-business', () => openNewBusiness());
@@ -539,7 +654,9 @@ const AdminView = (() => {
    ========================================================================== */
 
 const OwnerUI = (() => {
+  let analyticsRequest = 0;
   const inputCls = 'w-full rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-moss/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+  const zoneInputCls = 'rounded-xl border border-ink/10 bg-white px-3 py-2.5 text-sm outline-none transition placeholder:text-moss/50 focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
   const labelCls = 'block text-[11px] font-semibold uppercase tracking-wide text-moss';
   const ghostBtn = 'inline-flex items-center justify-center gap-2 rounded-xl border border-ink/10 bg-white px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-[#F4F5F7]';
   const primaryBtn = 'inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-700';
@@ -550,18 +667,7 @@ const OwnerUI = (() => {
 
   const isHttpUrl = (value) => !value || /^https?:\/\//i.test(value);
 
-  const categoriesOf = (business) => {
-    const present = Array.from(new Set(Store.products(business.slug).map((p) => p.category)));
-    const order = Object.keys(ALTOGO.categories);
-    return present.sort((a, b) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b, 'es');
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  };
+  const categoriesOf = (business) => Store.categoriesOf(business.slug);
 
   /* Barra de administración dentro del catálogo */
   const toolbar = (business) => `
@@ -595,11 +701,25 @@ const OwnerUI = (() => {
     </section>`;
 
   /* ---------- Perfil de la tienda ---------- */
+  const zoneRow = (zone = {}) => `
+    <div data-zone-row class="flex items-center gap-2">
+      <input name="zoneName" value="${Utils.esc(zone.name || '')}" placeholder="Ej. Centro" maxlength="60"
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Nombre de la zona" />
+      <input name="zonePrice" type="number" min="0" step="1" value="${zone.price ?? ''}" placeholder="Precio"
+        class="${zoneInputCls} w-24 shrink-0 text-right" aria-label="Precio de la zona" />
+      <button type="button" data-action="zone-remove" aria-label="Quitar zona"
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
+        ${Utils.icon('trash', 'h-4 w-4')}
+      </button>
+    </div>`;
+
   const openSettings = () => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
     const business = Store.business(session.businessSlug);
     if (!business) return;
+    const mode = business.shippingMode || 'fixed';
+    const zones = Array.isArray(business.shippingZones) ? business.shippingZones : [];
 
     Utils.openModal({
       title: 'Mi tienda',
@@ -609,7 +729,6 @@ const OwnerUI = (() => {
         <form data-form="store-save" class="space-y-4">
           <div class="grid gap-3 sm:grid-cols-2">
             ${field('Nombre', `<input name="name" required maxlength="60" class="${inputCls}" value="${Utils.esc(business.name)}" />`)}
-            ${field('Precio del delivery (ARS)', `<input name="shippingCost" type="number" min="0" step="1" required class="${inputCls}" value="${business.shippingCost}" />`)}
             ${field('WhatsApp (con código de país)', `<input name="whatsapp" required inputmode="tel" class="${inputCls}" value="${Utils.esc(business.whatsapp)}" placeholder="5215512345678" />`)}
             ${field('Foto / logo (URL)', `<input name="logo" class="${inputCls}" value="${Utils.esc(business.logo)}" placeholder="https://…" />`)}
             ${field('Estado del comercio', `<select name="open" class="${inputCls}">
@@ -618,6 +737,38 @@ const OwnerUI = (() => {
             </select>`)}
             ${field('Biografía', `<textarea name="tagline" rows="3" maxlength="160" class="${inputCls} resize-none" placeholder="Productos frescos y básicos para tu casa.">${Utils.esc(business.tagline)}</textarea>`, 'sm:col-span-2')}
           </div>
+
+          <section class="rounded-2xl border border-ink/10 bg-cream/50 p-4">
+            <label class="block">
+              <span class="${labelCls} mb-1">Delivery</span>
+              <select name="shippingMode" data-change="shipping-mode" class="${inputCls}">
+                <option value="fixed" ${mode === 'fixed' ? 'selected' : ''}>Precio fijo para todos</option>
+                <option value="zones" ${mode === 'zones' ? 'selected' : ''}>Precio según la zona</option>
+                <option value="whatsapp" ${mode === 'whatsapp' ? 'selected' : ''}>Se cobra por WhatsApp</option>
+              </select>
+            </label>
+
+            <div id="shipping-fixed-wrap" class="mt-3 ${mode === 'fixed' ? '' : 'hidden'}">
+              ${field('Precio del delivery (ARS)', `<input name="shippingCost" type="number" min="0" step="1" class="${inputCls}" value="${business.shippingCost}" />`)}
+              <p class="mt-1 text-[11px] text-moss">Usa 0 para ofrecer envío gratis.</p>
+            </div>
+
+            <div id="shipping-zones-wrap" class="mt-3 ${mode === 'zones' ? '' : 'hidden'}">
+              <p class="mb-2 text-[11px] leading-relaxed text-moss">El cliente elige una zona al confirmar y el sistema suma ese precio al total.</p>
+              <div id="zone-rows" class="space-y-2">${zones.map(zoneRow).join('')}</div>
+              <button type="button" data-action="zone-add" class="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
+                ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar zona
+              </button>
+            </div>
+
+            <div id="shipping-whatsapp-wrap" class="mt-3 ${mode === 'whatsapp' ? '' : 'hidden'}">
+              <div class="flex gap-2.5 rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-900">
+                <span class="mt-0.5 shrink-0">${Utils.icon('whatsapp', 'h-4 w-4')}</span>
+                <p class="text-[11px] leading-relaxed">El pedido se envía sin costo de envío. El comercio acuerda el delivery con el cliente por WhatsApp según su ubicación.</p>
+              </div>
+            </div>
+          </section>
+
           <p class="text-[11px] leading-relaxed text-moss">La foto es opcional: si la dejas vacía se usan tus iniciales. Si cierras el comercio, los clientes podrán ver el catálogo pero no enviar pedidos.</p>
           <div class="flex flex-col-reverse gap-2 border-t border-ink/5 pt-4 sm:flex-row sm:justify-end">
             <button type="button" data-action="modal-close" class="${ghostBtn}">Cancelar</button>
@@ -639,14 +790,22 @@ const OwnerUI = (() => {
 
     const body = categories.length
       ? `<form data-form="categories-save" class="space-y-4">
-          <p class="text-xs leading-relaxed text-moss">Renombra una categoría y se actualizará en todos sus productos.</p>
+          <p class="text-xs leading-relaxed text-moss">Renombra cada categoría y usa las flechas para elegir el orden en que aparecen en tu catálogo.</p>
           <div class="space-y-2">
-            ${categories.map((category) => {
+            ${categories.map((category, index) => {
               const count = products.filter((p) => p.category === category).length;
-              return `<div class="flex items-center gap-2">
+              return `<div data-category-row class="flex items-center gap-2">
                 <input name="cat::${Utils.esc(category)}" value="${Utils.esc(category)}" required maxlength="40"
-                  class="${inputCls}" aria-label="Nombre de la categoría ${Utils.esc(category)}" />
-                <span class="w-16 shrink-0 text-right text-[11px] text-moss">${count} ${count === 1 ? 'producto' : 'productos'}</span>
+                  class="${inputCls} min-w-0 flex-1" aria-label="Nombre de la categoría ${Utils.esc(category)}" />
+                <span class="hidden w-16 shrink-0 text-right text-[11px] text-moss sm:block">${count} ${count === 1 ? 'producto' : 'productos'}</span>
+                <div class="flex shrink-0 items-center">
+                  <button type="button" data-action="category-move" data-dir="up" ${index === 0 ? 'disabled' : ''}
+                    aria-label="Subir ${Utils.esc(category)}" title="Subir"
+                    class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
+                  <button type="button" data-action="category-move" data-dir="down" ${index === categories.length - 1 ? 'disabled' : ''}
+                    aria-label="Bajar ${Utils.esc(category)}" title="Bajar"
+                    class="grid h-8 w-8 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('down', 'h-4 w-4')}</button>
+                </div>
               </div>`;
             }).join('')}
           </div>
@@ -671,15 +830,18 @@ const OwnerUI = (() => {
     const products = Store.products(business.slug);
 
     const body = products.length
-      ? `<p class="text-xs leading-relaxed text-moss">El orden se aplica a tu catálogo en la vista <strong>Todas</strong>. Usa las flechas para mover cada producto.</p>
+      ? `<p class="text-xs leading-relaxed text-moss">El orden se aplica a tu catálogo en la vista <strong>Todas</strong>. Usa las flechas o el botón superior para mover cada producto.</p>
         <div class="mt-3 divide-y divide-ink/5 overflow-hidden rounded-xl border border-ink/5">
           ${products.map((product, index) => `
-            <div class="flex items-center gap-2 px-3 py-2.5">
+            <div class="flex items-center gap-1.5 px-3 py-2.5 sm:gap-2">
               <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#F4F5F7] text-[10px] font-semibold text-moss">${index + 1}</span>
               <div class="min-w-0 flex-1">
                 <p class="truncate text-sm font-medium">${Utils.esc(product.name)}</p>
                 <p class="text-[10px] text-moss">${Utils.esc(product.category)}</p>
               </div>
+              <button type="button" data-action="product-move" data-id="${product.id}" data-dir="top" ${index === 0 ? 'disabled' : ''}
+                aria-label="Mover ${Utils.esc(product.name)} al principio" title="Mover al principio"
+                class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('top', 'h-4 w-4')}</button>
               <button type="button" data-action="product-move" data-id="${product.id}" data-dir="up" ${index === 0 ? 'disabled' : ''}
                 aria-label="Subir ${Utils.esc(product.name)}" title="Subir"
                 class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
@@ -696,11 +858,12 @@ const OwnerUI = (() => {
   };
 
   /* ---------- Analíticas: visitas y productos ---------- */
-  const openAnalytics = () => {
+  const openAnalytics = async () => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
     const business = Store.business(session.businessSlug);
     if (!business) return;
+    const request = ++analyticsRequest;
 
     const products = Store.products(business.slug);
 
@@ -708,11 +871,42 @@ const OwnerUI = (() => {
       title: 'Analíticas',
       subtitle: business.name,
       size: 'lg',
-      body: `
+      body: `<div data-owner-analytics-loading class="rounded-2xl border border-ink/5 bg-white px-5 py-10 text-center">
+        <p class="text-sm font-medium">Cargando ventas…</p>
+        <p class="mt-1 text-[11px] text-moss">Estamos sumando los pedidos de tu comercio.</p>
+      </div>`
+    });
+
+    let data = null;
+    let error = '';
+    try {
+      data = await Store.loadProductAnalytics(business.slug);
+    } catch (loadError) {
+      error = loadError.message || 'No se pudieron cargar las ventas.';
+    }
+    if (request !== analyticsRequest) return;
+
+    const bodyRoot = document.querySelector('[data-owner-analytics-loading]');
+    if (!bodyRoot) return;
+    const modalBody = bodyRoot.closest('[data-modal-body]');
+    if (!modalBody) return;
+
+    modalBody.innerHTML = `
         <div class="rounded-2xl border border-ink/5 bg-[#F7F8FA] p-5">
           <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Visitas a tu página</p>
           <p class="mt-1 font-display text-4xl font-semibold tabular">${Utils.num(business.visits)}</p>
           <p class="mt-1 text-[11px] text-moss">Se cuenta cada apertura pública de tu catálogo.</p>
+        </div>
+
+        <div class="mt-4">
+          ${error
+            ? `<div class="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-6 text-center text-rose-800">
+                <p class="text-sm font-semibold">No pudimos cargar las ventas</p>
+                <p class="mt-1 text-[11px]">${Utils.esc(error)}</p>
+                <button type="button" data-action="owner-analytics" class="mt-3 rounded-lg bg-rose-700 px-3 py-2 text-xs font-semibold text-white">Reintentar</button>
+              </div>`
+            : `${AnalyticsView.salesCards(data.totals)}
+               <div class="mt-4">${AnalyticsView.productRanking(data, { limit: 10 })}</div>`}
         </div>
 
         <div class="mt-4">
@@ -735,11 +929,20 @@ const OwnerUI = (() => {
           </div>
         </div>
 
-        <button type="button" data-action="modal-close" class="mt-4 w-full rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Entendido</button>`
-    });
+        <button type="button" data-action="modal-close" class="mt-4 w-full rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Entendido</button>`;
   };
 
   /* ---------- Modal de producto (crear / editar) ---------- */
+  const productImageRow = (url = '', index = 0) => `
+    <div data-product-image-row class="flex items-center gap-2">
+      <input name="imageUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Imagen ${index + 1} del producto" />
+      <button type="button" data-action="product-image-remove" aria-label="Quitar imagen"
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
+        ${Utils.icon('trash', 'h-4 w-4')}
+      </button>
+    </div>`;
+
   const openProduct = (productId = null) => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
@@ -757,6 +960,8 @@ const OwnerUI = (() => {
       ...Object.keys(ALTOGO.categories),
       ...(business ? categoriesOf(business) : [])
     ]));
+    const images = product && Array.isArray(product.images) ? product.images : [];
+    const imageRows = images.length ? images : [''];
 
     const body = `
       <form data-form="product-save" class="space-y-4">
@@ -766,8 +971,20 @@ const OwnerUI = (() => {
           ${field('Precio (ARS)', `<input name="price" type="number" min="1" step="1" required class="${inputCls}" value="${product ? product.price : ''}" placeholder="75" />`)}
           ${field('Categoría', `<input name="category" required list="categorias-sugeridas" class="${inputCls}" value="${product ? Utils.esc(product.category) : ''}" placeholder="Almacén" />
             <datalist id="categorias-sugeridas">${categories.map((category) => `<option value="${Utils.esc(category)}"></option>`).join('')}</datalist>`)}
-          ${field('Imagen (URL opcional)', `<input name="image" class="${inputCls}" value="${product ? Utils.esc(product.image) : ''}" placeholder="https://…" />`, 'sm:col-span-2')}
         </div>
+
+        <section class="rounded-2xl border border-ink/10 bg-[#F7F8FA] p-3.5">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-moss">Imágenes del producto</p>
+              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Hasta 8 imágenes. La primera se usa como portada y todas se muestran en un carrusel manual.</p>
+            </div>
+            <button type="button" data-action="product-image-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
+              ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar imagen
+            </button>
+          </div>
+          <div id="product-image-rows" class="mt-2.5 space-y-2">${imageRows.map((image, index) => productImageRow(image, index)).join('')}</div>
+        </section>
 
         <p class="rounded-xl bg-[#F7F8FA] px-3 py-2.5 text-[11px] leading-relaxed text-moss">
           <strong class="text-ink">Medida recomendada: 1200 × 900 px (4:3).</strong>
@@ -852,6 +1069,43 @@ const OwnerUI = (() => {
   Events.onAction('owner-analytics', () => openAnalytics());
   Events.onAction('delete-product', (el) => openDeleteProduct(el.dataset.id));
 
+  Events.onAction('product-image-add', () => {
+    const rows = document.getElementById('product-image-rows');
+    if (!rows) return;
+    const count = rows.querySelectorAll('[data-product-image-row]').length;
+    if (count >= 8) {
+      return Utils.toast('Puedes agregar hasta 8 imágenes por producto.', 'warning');
+    }
+    rows.insertAdjacentHTML('beforeend', productImageRow('', count));
+    const added = rows.querySelector('[data-product-image-row]:last-child input[name="imageUrl"]');
+    if (added) added.focus();
+  });
+
+  Events.onAction('product-image-remove', (el) => {
+    const row = el.closest('[data-product-image-row]');
+    if (row) row.remove();
+  });
+
+  Events.onAction('category-move', (el) => {
+    const row = el.closest('[data-category-row]');
+    const container = row ? row.parentElement : null;
+    if (!row || !container) return;
+
+    if (el.dataset.dir === 'up' && row.previousElementSibling) {
+      container.insertBefore(row, row.previousElementSibling);
+    } else if (el.dataset.dir === 'down' && row.nextElementSibling) {
+      container.insertBefore(row.nextElementSibling, row);
+    }
+
+    const rows = Array.from(container.querySelectorAll('[data-category-row]'));
+    rows.forEach((item, index) => {
+      const up = item.querySelector('[data-action="category-move"][data-dir="up"]');
+      const down = item.querySelector('[data-action="category-move"][data-dir="down"]');
+      if (up) up.disabled = index === 0;
+      if (down) down.disabled = index === rows.length - 1;
+    });
+  });
+
   Events.onAction('product-move', async (el) => {
     try {
       await Store.moveProduct(el.dataset.id, el.dataset.dir);
@@ -869,6 +1123,28 @@ const OwnerUI = (() => {
     if (boolWrap) boolWrap.classList.toggle('hidden', el.value !== 'bool');
   });
 
+  Events.onChange('shipping-mode', (el) => {
+    const fixed = document.getElementById('shipping-fixed-wrap');
+    const zones = document.getElementById('shipping-zones-wrap');
+    const whatsapp = document.getElementById('shipping-whatsapp-wrap');
+    if (fixed) fixed.classList.toggle('hidden', el.value !== 'fixed');
+    if (zones) zones.classList.toggle('hidden', el.value !== 'zones');
+    if (whatsapp) whatsapp.classList.toggle('hidden', el.value !== 'whatsapp');
+  });
+
+  Events.onAction('zone-add', () => {
+    const rows = document.getElementById('zone-rows');
+    if (!rows) return;
+    rows.insertAdjacentHTML('beforeend', zoneRow());
+    const added = rows.querySelector('[data-zone-row]:last-child input[name="zoneName"]');
+    if (added) added.focus();
+  });
+
+  Events.onAction('zone-remove', (el) => {
+    const row = el.closest('[data-zone-row]');
+    if (row) row.remove();
+  });
+
   Events.onSubmit('store-save', async (form) => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
@@ -876,18 +1152,42 @@ const OwnerUI = (() => {
     const data = new FormData(form);
     const name = String(data.get('name') || '').trim();
     const whatsapp = Utils.digits(data.get('whatsapp'));
+    const shippingMode = String(data.get('shippingMode') || 'fixed');
     const shippingCost = Number(data.get('shippingCost'));
+    const zoneNames = data.getAll('zoneName');
+    const zonePrices = data.getAll('zonePrice');
     const logo = String(data.get('logo') || '').trim();
     const tagline = String(data.get('tagline') || '').trim();
     const open = String(data.get('open') || 'open') === 'open';
 
     if (!name) return Utils.toast('Tu tienda necesita un nombre.', 'error');
     if (whatsapp.length < 8) return Utils.toast('Captura un WhatsApp válido con código de país.', 'error');
+    if (!['fixed', 'zones', 'whatsapp'].includes(shippingMode)) return Utils.toast('Elige una forma válida de cobrar el delivery.', 'error');
     if (!Number.isFinite(shippingCost) || shippingCost < 0) return Utils.toast('El precio del delivery no es válido.', 'error');
     if (!isHttpUrl(logo)) return Utils.toast('La URL de la foto debe empezar con http:// o https://', 'error');
 
+    const shippingZones = [];
+    const seenZones = [];
+    for (let index = 0; index < zoneNames.length; index += 1) {
+      const zoneName = String(zoneNames[index] || '').trim();
+      const rawPrice = String(zonePrices[index] ?? '').trim();
+      if (!zoneName && !rawPrice) continue;
+      const price = Number(rawPrice);
+      if (zoneName.length < 2) return Utils.toast('Cada zona necesita un nombre de al menos 2 caracteres.', 'error');
+      if (!Number.isFinite(price) || price < 0) return Utils.toast(`El precio de la zona “${zoneName}” no es válido.`, 'error');
+      const normalized = Utils.normalize(zoneName);
+      if (seenZones.includes(normalized)) return Utils.toast(`La zona “${zoneName}” está repetida.`, 'error');
+      seenZones.push(normalized);
+      shippingZones.push({ name: zoneName, price: Math.floor(price) });
+    }
+    if (shippingMode === 'zones' && shippingZones.length === 0) {
+      return Utils.toast('Agrega al menos una zona de delivery.', 'error');
+    }
+
     try {
-      await Store.updateBusinessProfile(session.businessSlug, { name, whatsapp, shippingCost, logo, tagline, open });
+      await Store.updateBusinessProfile(session.businessSlug, {
+        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, open
+      });
       Utils.toast('Datos de la tienda actualizados.');
       Utils.closeModal();
       App.render();
@@ -905,6 +1205,8 @@ const OwnerUI = (() => {
     const data = new FormData(form);
     const renames = [];
     const targets = [];
+    const normalizedTargets = [];
+    const previousOrder = categoriesOf(business);
 
     for (const [key, value] of data.entries()) {
       if (!key.startsWith('cat::')) continue;
@@ -912,16 +1214,22 @@ const OwnerUI = (() => {
       const to = String(value).trim();
       if (!to) return Utils.toast('Las categorías no pueden quedar vacías.', 'error');
       const normalized = Utils.normalize(to);
-      if (targets.includes(normalized)) return Utils.toast(`La categoría “${to}” está repetida.`, 'error');
-      targets.push(normalized);
+      if (normalizedTargets.includes(normalized)) return Utils.toast(`La categoría “${to}” está repetida.`, 'error');
+      normalizedTargets.push(normalized);
+      targets.push(to);
       if (from !== to) renames.push([from, to]);
     }
+
+    if (!targets.length) return Utils.toast('No hay categorías para guardar.', 'error');
+    const changedOrder = targets.some((category, index) => category !== previousOrder[index]);
 
     try {
       for (const [from, to] of renames) {
         await Store.renameCategory(business.slug, from, to);
       }
-      Utils.toast(renames.length ? 'Categorías actualizadas.' : 'No hubo cambios.');
+      await Store.saveCategoryOrder(business.slug, targets);
+      if (renames.length) Storefront.CatalogState.category = 'Todas';
+      Utils.toast(renames.length || changedOrder ? 'Categorías actualizadas.' : 'No hubo cambios.');
       Utils.closeModal();
       App.render();
     } catch (error) {
@@ -938,19 +1246,30 @@ const OwnerUI = (() => {
     const name = String(data.get('name') || '').trim();
     const category = String(data.get('category') || '').trim();
     const price = Number(data.get('price'));
-    const image = String(data.get('image') || '').trim();
     const mode = String(data.get('stockMode') || 'qty');
+    const images = [];
+    const seenImages = new Set();
 
     if (!name) return Utils.toast('El producto necesita un nombre.', 'error');
     if (!Number.isFinite(price) || price <= 0) return Utils.toast('Indica un precio mayor a cero.', 'error');
     if (!category) return Utils.toast('Indica una categoría.', 'error');
-    if (!isHttpUrl(image)) return Utils.toast('La URL de la imagen debe empezar con http:// o https://', 'error');
+
+    for (const rawImage of data.getAll('imageUrl')) {
+      const image = String(rawImage || '').trim();
+      if (!image) continue;
+      if (!isHttpUrl(image)) return Utils.toast('Cada imagen debe empezar con http:// o https://', 'error');
+      if (image.length > 1000) return Utils.toast('Una de las imágenes tiene una URL demasiado larga.', 'error');
+      if (seenImages.has(image)) return Utils.toast('No repitas la misma imagen en un producto.', 'error');
+      seenImages.add(image);
+      images.push(image);
+    }
+    if (images.length > 8) return Utils.toast('Puedes agregar hasta 8 imágenes por producto.', 'error');
 
     const stock = mode === 'bool'
       ? data.get('available') === 'on'
       : Math.max(0, Math.floor(Number(data.get('qty')) || 0));
 
-    const payload = { name, category, price, image, stock };
+    const payload = { name, category, price, image: images[0] || '', images, stock };
 
     try {
       if (id) {
