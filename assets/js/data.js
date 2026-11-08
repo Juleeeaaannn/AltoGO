@@ -228,13 +228,12 @@ const Store = (() => {
 
   const normalizeProduct = (productItem) => {
     if (!productItem || typeof productItem !== 'object') return productItem;
-    productItem.links = Array.isArray(productItem.links)
-      ? Array.from(new Set(
-          productItem.links
-            .map((link) => String(link || '').trim())
-            .filter(Boolean)
-        )).slice(0, 8)
+    const images = Array.isArray(productItem.images)
+      ? productItem.images.map((image) => String(image || '').trim()).filter(Boolean)
       : [];
+    if (!images.length && productItem.image) images.push(String(productItem.image).trim());
+    productItem.images = Array.from(new Set(images)).slice(0, 8);
+    productItem.image = productItem.images[0] || '';
     return productItem;
   };
 
@@ -808,7 +807,7 @@ const Store = (() => {
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
         p_stock: data.stock,
-        p_links: Array.isArray(data.links) ? data.links : []
+        p_images: Array.isArray(data.images) ? data.images : []
       });
       await refresh();
       return created;
@@ -820,7 +819,7 @@ const Store = (() => {
       category: data.category,
       price: Number(data.price) || 0,
       image: data.image || '',
-      links: Array.isArray(data.links) ? data.links : [],
+      images: Array.isArray(data.images) ? data.images : [],
       stock: data.stock
     };
     normalizeProduct(created);
@@ -838,7 +837,7 @@ const Store = (() => {
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
         p_stock: data.stock,
-        p_links: Array.isArray(data.links) ? data.links : []
+        p_images: Array.isArray(data.images) ? data.images : []
       });
       await refresh();
       return updated;
@@ -850,7 +849,7 @@ const Store = (() => {
       category: data.category,
       price: Number(data.price) || 0,
       image: data.image || '',
-      links: Array.isArray(data.links) ? data.links : [],
+      images: Array.isArray(data.images) ? data.images : [],
       stock: data.stock
     });
     normalizeProduct(target);

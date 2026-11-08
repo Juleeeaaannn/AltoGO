@@ -46,28 +46,44 @@ const Storefront = (() => {
     </div>`;
   };
 
-  const linkLabel = (url) => {
-    try {
-      const host = new URL(url).hostname.replace(/^www\./i, '');
-      return host || 'Enlace';
-    } catch {
-      return 'Enlace';
-    }
+  const productImages = (product) => {
+    const images = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
+    if (!images.length && product.image) images.push(product.image);
+    return images.slice(0, 8);
   };
 
-  const productLinksHTML = (product) => {
-    const links = Array.isArray(product.links) ? product.links.filter(Boolean) : [];
-    if (!links.length) return '';
+  const productGallery = (product) => {
+    const images = productImages(product);
+    if (images.length <= 1) {
+      return `<div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
+        <div class="aspect-[4/3] w-full">${productMedia(product, 'text-6xl sm:text-7xl')}</div>
+      </div>`;
+    }
+
     return `
-      <div class="mt-4 rounded-2xl border border-ink/5 bg-[#F7F8FA] p-3.5">
-        <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Enlaces del producto</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          ${links.map((url) => `
-            <a href="${Utils.esc(url)}" target="_blank" rel="noopener noreferrer"
-              class="inline-flex max-w-full items-center gap-1.5 rounded-xl border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
-              ${Utils.icon('forward', 'h-3.5 w-3.5 shrink-0')}
-              <span class="truncate">${Utils.esc(linkLabel(url))}</span>
-            </a>`).join('')}
+      <div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
+        <div data-gallery data-index="0" data-count="${images.length}">
+          <div class="relative aspect-[4/3] w-full overflow-hidden bg-white">
+            ${images.map((image, index) => `
+              <img data-gallery-slide="${index}" src="${Utils.esc(image)}" alt="${Utils.esc(product.name)} — imagen ${index + 1}"
+                class="absolute inset-0 h-full w-full object-contain p-1.5 transition-opacity duration-200 ${index === 0 ? 'opacity-100' : 'pointer-events-none opacity-0'}" />`).join('')}
+
+            <button type="button" data-action="gallery-prev" aria-label="Imagen anterior"
+              class="absolute left-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-ink/5 bg-white/90 text-ink shadow-sm backdrop-blur transition hover:bg-white">
+              ${Utils.icon('back', 'h-4 w-4')}
+            </button>
+            <button type="button" data-action="gallery-next" aria-label="Imagen siguiente"
+              class="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-ink/5 bg-white/90 text-ink shadow-sm backdrop-blur transition hover:bg-white">
+              ${Utils.icon('forward', 'h-4 w-4')}
+            </button>
+            <span data-gallery-counter class="absolute bottom-2 left-2 rounded-full bg-ink/75 px-2 py-0.5 text-[10px] font-semibold tabular text-white backdrop-blur">1 / ${images.length}</span>
+          </div>
+
+          <div class="flex items-center justify-center gap-1.5 px-3 py-2.5">
+            ${images.map((_, index) => `
+              <button type="button" data-action="gallery-dot" data-index="${index}" aria-label="Ir a la imagen ${index + 1}"
+                class="h-2 rounded-full transition-all ${index === 0 ? 'w-5 bg-ink' : 'w-2 bg-ink/20'}"></button>`).join('')}
+          </div>
         </div>
       </div>`;
   };
@@ -499,9 +515,7 @@ const Storefront = (() => {
       subtitle: product.category,
       size: 'lg',
       body: `
-        <div class="overflow-hidden rounded-2xl border border-ink/5 bg-white">
-          <div class="aspect-[4/3] w-full">${productMedia(product, 'text-6xl sm:text-7xl')}</div>
-        </div>
+        ${productGallery(product)}
         <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Precio</p>
@@ -515,9 +529,47 @@ const Storefront = (() => {
         </div>
         <p class="mt-4 rounded-xl bg-[#F4F5F7] px-3.5 py-3 text-[11px] leading-relaxed text-moss">
           Puedes ajustar la cantidad desde el carrito. El pedido se coordina por WhatsApp con el comercio.
-        </p>
-        ${productLinksHTML(product)}`
+        </p>`
     });
+  });
+
+  const moveGallery = (gallery, index) => {
+    if (!gallery) return;
+    const count = Number(gallery.dataset.count) || 0;
+    if (count < 2) return;
+    const next = ((index % count) + count) % count;
+    gallery.dataset.index = String(next);
+
+    gallery.querySelectorAll('[data-gallery-slide]').forEach((slide, slideIndex) => {
+      slide.classList.toggle('opacity-100', slideIndex === next);
+      slide.classList.toggle('pointer-events-none', slideIndex !== next);
+      slide.classList.toggle('opacity-0', slideIndex !== next);
+    });
+    gallery.querySelectorAll('[data-action="gallery-dot"]').forEach((dot, dotIndex) => {
+      dot.classList.toggle('w-5', dotIndex === next);
+      dot.classList.toggle('bg-ink', dotIndex === next);
+      dot.classList.toggle('w-2', dotIndex !== next);
+      dot.classList.toggle('bg-ink/20', dotIndex !== next);
+      if (dotIndex === next) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+    const counter = gallery.querySelector('[data-gallery-counter]');
+    if (counter) counter.textContent = `${next + 1} / ${count}`;
+  };
+
+  Events.onAction('gallery-prev', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(gallery.dataset.index) - 1);
+  });
+
+  Events.onAction('gallery-next', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(gallery.dataset.index) + 1);
+  });
+
+  Events.onAction('gallery-dot', (el) => {
+    const gallery = el.closest('[data-gallery]');
+    if (gallery) moveGallery(gallery, Number(el.dataset.index));
   });
 
   Events.onAction('product-modal-add', (el) => {

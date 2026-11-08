@@ -933,11 +933,11 @@ const OwnerUI = (() => {
   };
 
   /* ---------- Modal de producto (crear / editar) ---------- */
-  const productLinkRow = (url = '') => `
-    <div data-product-link-row class="flex items-center gap-2">
-      <input name="linkUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
-        class="${zoneInputCls} min-w-0 flex-1" aria-label="Enlace del producto" />
-      <button type="button" data-action="product-link-remove" aria-label="Quitar enlace"
+  const productImageRow = (url = '', index = 0) => `
+    <div data-product-image-row class="flex items-center gap-2">
+      <input name="imageUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Imagen ${index + 1} del producto" />
+      <button type="button" data-action="product-image-remove" aria-label="Quitar imagen"
         class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
         ${Utils.icon('trash', 'h-4 w-4')}
       </button>
@@ -960,8 +960,8 @@ const OwnerUI = (() => {
       ...Object.keys(ALTOGO.categories),
       ...(business ? categoriesOf(business) : [])
     ]));
-    const links = product && Array.isArray(product.links) ? product.links : [];
-    const linkRows = links.length ? links : [''];
+    const images = product && Array.isArray(product.images) ? product.images : [];
+    const imageRows = images.length ? images : [''];
 
     const body = `
       <form data-form="product-save" class="space-y-4">
@@ -971,20 +971,19 @@ const OwnerUI = (() => {
           ${field('Precio (ARS)', `<input name="price" type="number" min="1" step="1" required class="${inputCls}" value="${product ? product.price : ''}" placeholder="75" />`)}
           ${field('Categoría', `<input name="category" required list="categorias-sugeridas" class="${inputCls}" value="${product ? Utils.esc(product.category) : ''}" placeholder="Almacén" />
             <datalist id="categorias-sugeridas">${categories.map((category) => `<option value="${Utils.esc(category)}"></option>`).join('')}</datalist>`)}
-          ${field('Imagen (URL opcional)', `<input name="image" class="${inputCls}" value="${product ? Utils.esc(product.image) : ''}" placeholder="https://…" />`, 'sm:col-span-2')}
         </div>
 
         <section class="rounded-2xl border border-ink/10 bg-[#F7F8FA] p-3.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <p class="text-[11px] font-semibold uppercase tracking-wide text-moss">Enlaces del producto</p>
-              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Hasta 8 enlaces opcionales, por ejemplo a una ficha, red social o publicación.</p>
+              <p class="text-[11px] font-semibold uppercase tracking-wide text-moss">Imágenes del producto</p>
+              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Hasta 8 imágenes. La primera se usa como portada y todas se muestran en un carrusel manual.</p>
             </div>
-            <button type="button" data-action="product-link-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
-              ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar enlace
+            <button type="button" data-action="product-image-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
+              ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar imagen
             </button>
           </div>
-          <div id="product-link-rows" class="mt-2.5 space-y-2">${linkRows.map(productLinkRow).join('')}</div>
+          <div id="product-image-rows" class="mt-2.5 space-y-2">${imageRows.map((image, index) => productImageRow(image, index)).join('')}</div>
         </section>
 
         <p class="rounded-xl bg-[#F7F8FA] px-3 py-2.5 text-[11px] leading-relaxed text-moss">
@@ -1070,19 +1069,20 @@ const OwnerUI = (() => {
   Events.onAction('owner-analytics', () => openAnalytics());
   Events.onAction('delete-product', (el) => openDeleteProduct(el.dataset.id));
 
-  Events.onAction('product-link-add', () => {
-    const rows = document.getElementById('product-link-rows');
+  Events.onAction('product-image-add', () => {
+    const rows = document.getElementById('product-image-rows');
     if (!rows) return;
-    if (rows.querySelectorAll('[data-product-link-row]').length >= 8) {
-      return Utils.toast('Puedes agregar hasta 8 enlaces por producto.', 'warning');
+    const count = rows.querySelectorAll('[data-product-image-row]').length;
+    if (count >= 8) {
+      return Utils.toast('Puedes agregar hasta 8 imágenes por producto.', 'warning');
     }
-    rows.insertAdjacentHTML('beforeend', productLinkRow());
-    const added = rows.querySelector('[data-product-link-row]:last-child input[name="linkUrl"]');
+    rows.insertAdjacentHTML('beforeend', productImageRow('', count));
+    const added = rows.querySelector('[data-product-image-row]:last-child input[name="imageUrl"]');
     if (added) added.focus();
   });
 
-  Events.onAction('product-link-remove', (el) => {
-    const row = el.closest('[data-product-link-row]');
+  Events.onAction('product-image-remove', (el) => {
+    const row = el.closest('[data-product-image-row]');
     if (row) row.remove();
   });
 
@@ -1246,32 +1246,30 @@ const OwnerUI = (() => {
     const name = String(data.get('name') || '').trim();
     const category = String(data.get('category') || '').trim();
     const price = Number(data.get('price'));
-    const image = String(data.get('image') || '').trim();
     const mode = String(data.get('stockMode') || 'qty');
-    const links = [];
-    const seenLinks = new Set();
+    const images = [];
+    const seenImages = new Set();
 
     if (!name) return Utils.toast('El producto necesita un nombre.', 'error');
     if (!Number.isFinite(price) || price <= 0) return Utils.toast('Indica un precio mayor a cero.', 'error');
     if (!category) return Utils.toast('Indica una categoría.', 'error');
-    if (!isHttpUrl(image)) return Utils.toast('La URL de la imagen debe empezar con http:// o https://', 'error');
 
-    for (const rawLink of data.getAll('linkUrl')) {
-      const link = String(rawLink || '').trim();
-      if (!link) continue;
-      if (!isHttpUrl(link)) return Utils.toast('Cada enlace debe empezar con http:// o https://', 'error');
-      if (link.length > 1000) return Utils.toast('Uno de los enlaces es demasiado largo.', 'error');
-      if (seenLinks.has(link)) return Utils.toast('No repitas el mismo enlace en un producto.', 'error');
-      seenLinks.add(link);
-      links.push(link);
+    for (const rawImage of data.getAll('imageUrl')) {
+      const image = String(rawImage || '').trim();
+      if (!image) continue;
+      if (!isHttpUrl(image)) return Utils.toast('Cada imagen debe empezar con http:// o https://', 'error');
+      if (image.length > 1000) return Utils.toast('Una de las imágenes tiene una URL demasiado larga.', 'error');
+      if (seenImages.has(image)) return Utils.toast('No repitas la misma imagen en un producto.', 'error');
+      seenImages.add(image);
+      images.push(image);
     }
-    if (links.length > 8) return Utils.toast('Puedes agregar hasta 8 enlaces por producto.', 'error');
+    if (images.length > 8) return Utils.toast('Puedes agregar hasta 8 imágenes por producto.', 'error');
 
     const stock = mode === 'bool'
       ? data.get('available') === 'on'
       : Math.max(0, Math.floor(Number(data.get('qty')) || 0));
 
-    const payload = { name, category, price, image, links, stock };
+    const payload = { name, category, price, image: images[0] || '', images, stock };
 
     try {
       if (id) {
