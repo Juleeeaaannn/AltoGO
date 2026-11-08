@@ -365,6 +365,25 @@ const Store = (() => {
     });
   };
 
+  // Productos ordenados para el catálogo: categorías en su orden propio,
+  // orden manual dentro de cada categoría y agotados al final.
+  const catalogProducts = (slug) => {
+    const rank = new Map(categoriesOf(slug).map((category, index) => [category, index]));
+    return products(slug)
+      .map((item, index) => ({
+        item,
+        index,
+        categoryRank: rank.has(item.category) ? rank.get(item.category) : Number.MAX_SAFE_INTEGER,
+        stockRank: stock(item).available ? 0 : 1
+      }))
+      .sort((a, b) =>
+        a.categoryRank - b.categoryRank
+        || a.stockRank - b.stockRank
+        || a.index - b.index
+      )
+      .map((entry) => entry.item);
+  };
+
   const product = (id) => db.products.find((item) => item.id === id) || null;
 
   const productCount = () => db.products.length;
@@ -844,6 +863,7 @@ const Store = (() => {
     }
     const target = db.products.find((item) => item.id === id);
     if (!target) return null;
+    const previousCategory = target.category;
     Object.assign(target, {
       name: data.name,
       category: data.category,
@@ -853,6 +873,11 @@ const Store = (() => {
       stock: data.stock
     });
     normalizeProduct(target);
+    // Al cambiar de categoría, el producto pasa al final de la nueva categoría.
+    if (target.category !== previousCategory) {
+      db.products = db.products.filter((item) => item.id !== target.id);
+      db.products.push(target);
+    }
     persist();
     return target;
   };
@@ -869,7 +894,7 @@ const Store = (() => {
     return db.products.length !== before;
   };
 
-  // Orden manual de productos dentro de un comercio (vista "Todas").
+  // Orden manual de productos dentro de cada categoría de un comercio.
   const moveProduct = async (id, direction) => {
     if (Backend.enabled) {
       await Backend.rpc('api_owner_move_product', { p_product_id: id, p_direction: direction });
@@ -879,7 +904,9 @@ const Store = (() => {
     const product = db.products.find((item) => item.id === id);
     if (!product) return false;
 
-    const siblings = db.products.filter((item) => item.businessSlug === product.businessSlug);
+    const siblings = db.products.filter((item) =>
+      item.businessSlug === product.businessSlug && item.category === product.category
+    );
     const position = siblings.findIndex((item) => item.id === id);
 
     if (direction === 'top') {
@@ -931,7 +958,7 @@ const Store = (() => {
     get data() { return db; },
     refresh, applySnapshot, loadView,
     businesses, listedBusinesses, business, deliveryInfo, deliveryLabel,
-    products, categoriesOf, product, productCount, productCountOf,
+    products, catalogProducts, categoriesOf, product, productCount, productCountOf,
     stock, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
     findUser, userForBusiness, usernameTaken,
     createBusiness, updateBusiness, updateBusinessProfile, renameCategory, saveCategoryOrder, updateAccess,

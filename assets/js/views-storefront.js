@@ -228,12 +228,25 @@ const Storefront = (() => {
 
   const filteredProducts = (business) => {
     const query = Utils.normalize(CatalogState.query);
-    return Store.products(business.slug).filter((product) => {
+    return Store.catalogProducts(business.slug).filter((product) => {
       const matchesCategory = CatalogState.category === 'Todas' || product.category === CatalogState.category;
       const haystack = Utils.normalize(`${product.name} ${product.category}`);
       const matchesQuery = !query || haystack.includes(query);
       return matchesCategory && matchesQuery;
     });
+  };
+
+  const productGroups = (business) => {
+    const groups = [];
+    filteredProducts(business).forEach((product) => {
+      let group = groups.find((item) => item.category === product.category);
+      if (!group) {
+        group = { category: product.category, products: [] };
+        groups.push(group);
+      }
+      group.products.push(product);
+    });
+    return groups;
   };
 
   const categoriesOf = (business) => Store.categoriesOf(business.slug);
@@ -251,8 +264,8 @@ const Storefront = (() => {
   };
 
   const gridHTML = (business, ownerMode) => {
-    const products = filteredProducts(business);
-    if (!products.length) {
+    const groups = productGroups(business);
+    if (!groups.length) {
       return `<div class="col-span-full rounded-2xl border border-dashed border-ink/15 bg-white/60 px-6 py-14 text-center">
         <span class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-moss ring-1 ring-ink/5">${Utils.icon('search', 'h-6 w-6')}</span>
         <p class="mt-4 font-display text-base font-semibold">${CatalogState.query || CatalogState.category !== 'Todas' ? 'No encontramos ese producto' : 'Catálogo en preparación'}</p>
@@ -264,7 +277,15 @@ const Storefront = (() => {
         ${ownerMode ? `<button type="button" data-action="new-product" class="mt-4 rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-semibold text-white">Agregar mi primer producto</button>` : ''}
       </div>`;
     }
-    return products.map((product) => productCard(product, ownerMode)).join('');
+
+    const showHeadings = CatalogState.category === 'Todas';
+    return groups.map((group) => `
+      ${showHeadings ? `<div class="col-span-full flex items-end justify-between gap-3 border-b border-ink/5 pb-1.5 pt-2 first:pt-0">
+        <h3 class="font-display text-base font-semibold">${Utils.esc(group.category)}</h3>
+        <span class="text-[10px] font-medium text-moss">${group.products.length} ${group.products.length === 1 ? 'producto' : 'productos'}</span>
+      </div>` : ''}
+      ${group.products.map((product) => productCard(product, ownerMode)).join('')}
+    `).join('');
   };
 
   const countLabel = (business) => {

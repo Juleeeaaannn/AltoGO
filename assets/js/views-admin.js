@@ -828,27 +828,44 @@ const OwnerUI = (() => {
     if (!business) return;
 
     const products = Store.products(business.slug);
+    const groups = categoriesOf(business)
+      .map((category) => ({
+        category,
+        products: products.filter((product) => product.category === category)
+      }))
+      .filter((group) => group.products.length);
 
-    const body = products.length
-      ? `<p class="text-xs leading-relaxed text-moss">El orden se aplica a tu catálogo en la vista <strong>Todas</strong>. Usa las flechas o el botón superior para mover cada producto.</p>
-        <div class="mt-3 divide-y divide-ink/5 overflow-hidden rounded-xl border border-ink/5">
-          ${products.map((product, index) => `
-            <div class="flex items-center gap-1.5 px-3 py-2.5 sm:gap-2">
-              <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#F4F5F7] text-[10px] font-semibold text-moss">${index + 1}</span>
-              <div class="min-w-0 flex-1">
-                <p class="truncate text-sm font-medium">${Utils.esc(product.name)}</p>
-                <p class="text-[10px] text-moss">${Utils.esc(product.category)}</p>
+    const body = groups.length
+      ? `<p class="text-xs leading-relaxed text-moss">El orden se guarda dentro de cada categoría. Usa las flechas o el botón superior para mover cada producto. Los agotados se muestran al final del catálogo público.</p>
+        <div class="mt-3 space-y-3">
+          ${groups.map((group) => `
+            <section class="overflow-hidden rounded-xl border border-ink/5">
+              <div class="flex items-center justify-between gap-2 bg-[#F7F8FA] px-3 py-2">
+                <h3 class="truncate text-xs font-semibold uppercase tracking-wide text-moss">${Utils.esc(group.category)}</h3>
+                <span class="shrink-0 text-[10px] text-moss">${group.products.length} ${group.products.length === 1 ? 'producto' : 'productos'}</span>
               </div>
-              <button type="button" data-action="product-move" data-id="${product.id}" data-dir="top" ${index === 0 ? 'disabled' : ''}
-                aria-label="Mover ${Utils.esc(product.name)} al principio" title="Mover al principio"
-                class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('top', 'h-4 w-4')}</button>
-              <button type="button" data-action="product-move" data-id="${product.id}" data-dir="up" ${index === 0 ? 'disabled' : ''}
-                aria-label="Subir ${Utils.esc(product.name)}" title="Subir"
-                class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
-              <button type="button" data-action="product-move" data-id="${product.id}" data-dir="down" ${index >= products.length - 1 ? 'disabled' : ''}
-                aria-label="Bajar ${Utils.esc(product.name)}" title="Bajar"
-                class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('down', 'h-4 w-4')}</button>
-            </div>`).join('')}
+              <div class="divide-y divide-ink/5">
+                ${group.products.map((product, index) => {
+                  const stock = Store.stock(product);
+                  return `<div class="flex items-center gap-1.5 px-3 py-2.5 sm:gap-2">
+                    <span class="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#F4F5F7] text-[10px] font-semibold text-moss">${index + 1}</span>
+                    <div class="min-w-0 flex-1">
+                      <p class="truncate text-sm font-medium">${Utils.esc(product.name)}</p>
+                      <p class="text-[10px] ${stock.available ? 'text-moss' : 'text-rose-600'}">${stock.label}</p>
+                    </div>
+                    <button type="button" data-action="product-move" data-id="${product.id}" data-dir="top" ${index === 0 ? 'disabled' : ''}
+                      aria-label="Mover ${Utils.esc(product.name)} al principio de ${Utils.esc(group.category)}" title="Mover al principio de la categoría"
+                      class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('top', 'h-4 w-4')}</button>
+                    <button type="button" data-action="product-move" data-id="${product.id}" data-dir="up" ${index === 0 ? 'disabled' : ''}
+                      aria-label="Subir ${Utils.esc(product.name)}" title="Subir"
+                      class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('up', 'h-4 w-4')}</button>
+                    <button type="button" data-action="product-move" data-id="${product.id}" data-dir="down" ${index >= group.products.length - 1 ? 'disabled' : ''}
+                      aria-label="Bajar ${Utils.esc(product.name)}" title="Bajar"
+                      class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-moss transition hover:bg-[#F4F5F7] hover:text-ink disabled:opacity-25 disabled:hover:bg-transparent">${Utils.icon('down', 'h-4 w-4')}</button>
+                  </div>`;
+                }).join('')}
+              </div>
+            </section>`).join('')}
         </div>
         <button type="button" data-action="modal-close" class="mt-4 w-full rounded-xl bg-ink px-4 py-2.5 text-sm font-semibold text-white">Listo</button>`
       : `<p class="text-sm leading-relaxed text-moss">Todavía no tienes productos para ordenar.</p>
