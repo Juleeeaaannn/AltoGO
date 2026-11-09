@@ -136,7 +136,7 @@ const Storefront = (() => {
             </a>
             <span class="inline-flex items-center gap-1.5 rounded-full border border-ink/10 bg-white px-3 py-1.5 text-[11px] font-medium text-moss">
               ${Utils.icon('whatsapp', 'h-3.5 w-3.5 text-[#1FA855]')}
-              <span class="hidden sm:inline">¿Quieres sumar tu negocio?</span> 
+              <span class="inline">¿Quieres sumar tu negocio?</span> 
               <a href="https://wa.me/5492646238873" target="_blank" rel="noopener noreferrer" class="font-semibold text-ink underline underline-offset-2">Escribinos</a>
           </div>
         </header>
@@ -212,12 +212,12 @@ const Storefront = (() => {
         <div class="flex flex-1 flex-col p-3.5">
           <span class="text-[10px] font-semibold uppercase tracking-wider text-moss/70">${Utils.esc(product.category)}</span>
           <h3 class="mt-1 line-clamp-2 text-sm font-semibold leading-snug">${Utils.esc(product.name)}</h3>
-          <div class="mt-auto flex items-end justify-between gap-2 pt-3">
-            <span class="font-display text-lg font-semibold tabular">${Utils.money(product.price)}</span>
+          <div class="mt-auto flex w-full flex-wrap items-end justify-between gap-2 pt-3">
+            <span class="min-w-0 whitespace-nowrap font-display text-base font-semibold tabular sm:text-lg">${Utils.money(product.price)}</span>
             ${ownerMode
-              ? `<span class="inline-flex items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-2 text-[11px] font-semibold text-blue-700">Editar</span>`
+              ? `<span class="inline-flex shrink-0 items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-2 text-[11px] font-semibold text-blue-700">Editar</span>`
               : `<button type="button" data-action="add-to-cart" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
-                  class="inline-flex items-center gap-1 rounded-xl px-3 py-2 text-xs font-semibold transition ${stock.available ? 'bg-ink text-white hover:bg-ink-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">
+                  class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-semibold transition ${stock.available ? 'bg-ink text-white hover:bg-ink-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">
                   ${Utils.icon('plus', 'h-3.5 w-3.5')} ${stock.available ? 'Agregar' : 'Sin stock'}
                 </button>`}
           </div>
