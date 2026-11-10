@@ -40,6 +40,33 @@ body {
   display: none;
 }
 
+/* Carrusel horizontal de productos por categoría (vista "Todas"). */
+.category-track {
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+}
+.category-card {
+  flex: 0 0 78%;
+  max-width: 260px;
+}
+@media (min-width: 640px) {
+  .category-card {
+    flex-basis: 46%;
+    max-width: 280px;
+  }
+}
+@media (min-width: 1024px) {
+  .category-card {
+    flex-basis: 31%;
+    max-width: 300px;
+  }
+}
+@media (min-width: 1280px) {
+  .category-card {
+    flex-basis: 23.5%;
+  }
+}
+
 /* --------------------------------------------------------------------------
    Arte generado para productos sin imagen (o con imagen rota).
    El color depende de la categoría; se define desde JS con inline-style.
@@ -120,4 +147,5 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
   html { scroll-behavior: auto; }
+  .category-track { scroll-behavior: auto; }
 }
