@@ -693,8 +693,9 @@ const OwnerUI = (() => {
           <button type="button" data-action="owner-analytics" class="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 transition hover:bg-blue-50">
             ${Utils.icon('chart', 'h-3.5 w-3.5')} Analíticas
           </button>
-          <button type="button" data-action="new-product" class="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700">
-            ${Utils.icon('plus', 'h-3.5 w-3.5')} Nuevo producto
+          <button type="button" data-action="new-product" aria-label="Agregar producto" title="Agregar producto"
+            class="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-blue-600 text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+            ${Utils.icon('plus', 'h-4 w-4')}
           </button>
         </div>
       </div>

@@ -188,7 +188,7 @@ const Storefront = (() => {
   /* ------------------------------------------------------------------------
      CATÁLOGO
      ------------------------------------------------------------------------ */
-  const productCard = (product, ownerMode) => {
+  const productCard = (product, ownerMode, extraClass = '') => {
     const stock = Store.stock(product);
     const inCart = Cart.qtyOf(product.id);
     const stockBadge = stock.available
@@ -203,23 +203,26 @@ const Storefront = (() => {
 
     return `
       <article ${cardAttrs}
-        class="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-[0_1px_0_rgba(11,21,17,.03)] transition duration-200 hover:-translate-y-0.5 hover:shadow-card ${ownerMode ? 'ring-1 ring-blue-300/80 hover:ring-2 hover:ring-blue-400' : ''}">
+        class="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-[0_1px_0_rgba(11,21,17,.03)] transition duration-200 hover:-translate-y-0.5 hover:shadow-card ${ownerMode ? 'ring-1 ring-blue-300/80 hover:ring-2 hover:ring-blue-400' : ''} ${extraClass}">
         <div class="relative aspect-[4/3] overflow-hidden bg-white">
           ${productMedia(product)}
           <span class="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur ${stockBadge}">${stock.label}</span>
-          ${ownerMode ? `<span class="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-blue-600 text-white shadow-md">${Utils.icon('edit', 'h-4 w-4')}</span>` : ''}
+          ${ownerMode
+            ? `<span class="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-blue-600 text-white shadow-md">${Utils.icon('edit', 'h-4 w-4')}</span>`
+            : `<button type="button" data-action="add-to-cart" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
+                aria-label="${stock.available ? 'Agregar' : 'Sin stock'} ${Utils.esc(product.name)}" title="${stock.available ? 'Agregar al pedido' : 'Sin stock'}"
+                class="absolute right-2 top-2 z-10 grid h-11 w-11 place-items-center rounded-full shadow-lg ring-2 ring-white/90 transition ${stock.available ? 'bg-emerald-600 text-white hover:scale-105 hover:bg-emerald-700 active:scale-95' : 'cursor-not-allowed bg-ink/30 text-white/80'}">
+                ${Utils.icon('plus', 'h-6 w-6')}
+              </button>`}
         </div>
         <div class="flex flex-1 flex-col p-3.5">
           <span class="text-[10px] font-semibold uppercase tracking-wider text-moss/70">${Utils.esc(product.category)}</span>
           <h3 class="mt-1 line-clamp-2 text-sm font-semibold leading-snug">${Utils.esc(product.name)}</h3>
-          <div class="mt-auto flex w-full flex-wrap items-end justify-between gap-2 pt-3">
+          <div class="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
             <span class="min-w-0 whitespace-nowrap font-display text-base font-semibold tabular sm:text-lg">${Utils.money(product.price)}</span>
             ${ownerMode
               ? `<span class="inline-flex shrink-0 items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-2 text-[11px] font-semibold text-blue-700">Editar</span>`
-              : `<button type="button" data-action="add-to-cart" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
-                  class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl px-2.5 py-2 text-xs font-semibold transition ${stock.available ? 'bg-ink text-white hover:bg-ink-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">
-                  ${Utils.icon('plus', 'h-3.5 w-3.5')} ${stock.available ? 'Agregar' : 'Sin stock'}
-                </button>`}
+              : ''}
           </div>
           ${!ownerMode && inCart > 0 ? `<p class="mt-2 text-[10px] font-medium text-emerald-700">${inCart} en tu pedido</p>` : ''}
         </div>
@@ -279,13 +282,35 @@ const Storefront = (() => {
     }
 
     const showHeadings = CatalogState.category === 'Todas';
-    return groups.map((group) => `
-      ${showHeadings ? `<div class="col-span-full flex items-end justify-between gap-3 border-b border-ink/5 pb-1.5 pt-2 first:pt-0">
-        <h3 class="font-display text-base font-semibold">${Utils.esc(group.category)}</h3>
-        <span class="text-[10px] font-medium text-moss">${group.products.length} ${group.products.length === 1 ? 'producto' : 'productos'}</span>
-      </div>` : ''}
-      ${group.products.map((product) => productCard(product, ownerMode)).join('')}
-    `).join('');
+    if (!showHeadings) return groups[0].products.map((product) => productCard(product, ownerMode)).join('');
+
+    return groups.map((group, groupIndex) => {
+      const trackId = `category-track-${groupIndex}`;
+      const canScroll = group.products.length > 1;
+      return `<section class="col-span-full">
+        <div class="flex items-end justify-between gap-3 border-b border-ink/5 pb-1.5 pt-2 first:pt-0">
+          <h3 class="font-display text-base font-semibold">${Utils.esc(group.category)}</h3>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] font-medium text-moss">${group.products.length} ${group.products.length === 1 ? 'producto' : 'productos'}</span>
+            ${canScroll ? `<div class="flex items-center gap-1">
+              <button type="button" data-action="catalog-carousel" data-target="${trackId}" data-dir="-1"
+                aria-label="Productos anteriores de ${Utils.esc(group.category)}" title="Anterior"
+                class="grid h-8 w-8 place-items-center rounded-full border border-ink/10 bg-white text-ink transition hover:border-ink/20 hover:bg-[#F4F5F7]">
+                ${Utils.icon('back', 'h-3.5 w-3.5')}
+              </button>
+              <button type="button" data-action="catalog-carousel" data-target="${trackId}" data-dir="1"
+                aria-label="Productos siguientes de ${Utils.esc(group.category)}" title="Siguiente"
+                class="grid h-8 w-8 place-items-center rounded-full border border-ink/10 bg-white text-ink transition hover:border-ink/20 hover:bg-[#F4F5F7]">
+                ${Utils.icon('forward', 'h-3.5 w-3.5')}
+              </button>
+            </div>` : ''}
+          </div>
+        </div>
+        <div id="${trackId}" class="category-track no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-2">
+          ${group.products.map((product) => productCard(product, ownerMode, 'category-card')).join('')}
+        </div>
+      </section>`;
+    }).join('');
   };
 
   const countLabel = (business) => {
@@ -510,6 +535,14 @@ const Storefront = (() => {
     refreshResults();
   });
 
+  Events.onAction('catalog-carousel', (el) => {
+    const track = document.getElementById(el.dataset.target || '');
+    if (!track) return;
+    const card = track.querySelector('.category-card');
+    const step = card ? card.getBoundingClientRect().width + 12 : track.clientWidth * 0.8;
+    track.scrollBy({ left: Number(el.dataset.dir || 1) * step });
+  });
+
   Events.onAction('add-to-cart', (el) => {
     const product = Store.product(el.dataset.id);
     if (!product) return;
@@ -544,7 +577,7 @@ const Storefront = (() => {
             <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${stockCls}">${stock.label}</span>
           </div>
           <button type="button" data-action="product-modal-add" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
-            class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${stock.available ? 'bg-ink text-white hover:bg-ink-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">
+            class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${stock.available ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">
             ${Utils.icon('plus', 'h-4 w-4')} ${stock.available ? 'Agregar al pedido' : 'Sin stock'}
           </button>
         </div>
