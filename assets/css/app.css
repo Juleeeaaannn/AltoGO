@@ -41,6 +41,15 @@ body {
 }
 
 /* Carrusel horizontal de productos por categoría (vista "Todas"). */
+.catalog-header {
+  background: linear-gradient(to bottom, rgba(11, 21, 17, .58), rgba(11, 21, 17, 0));
+  transition: background-color .2s ease, border-color .2s ease, backdrop-filter .2s ease;
+}
+.catalog-header.is-scrolled {
+  border-bottom-color: rgba(11, 21, 17, .06);
+  background: rgba(255, 255, 255, .94);
+  backdrop-filter: blur(16px);
+}
 .banner-track {
   display: flex;
   overflow-x: auto;

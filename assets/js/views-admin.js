@@ -744,6 +744,7 @@ const OwnerUI = (() => {
             ${field('Nombre', `<input name="name" required maxlength="60" class="${inputCls}" value="${Utils.esc(business.name)}" />`)}
             ${field('WhatsApp (con código de país)', `<input name="whatsapp" required inputmode="tel" class="${inputCls}" value="${Utils.esc(business.whatsapp)}" placeholder="5215512345678" />`)}
             ${field('Foto / logo (URL)', `<input name="logo" class="${inputCls}" value="${Utils.esc(business.logo)}" placeholder="https://…" />`)}
+            ${field('Horario de atención', `<input name="schedule" maxlength="120" class="${inputCls}" value="${Utils.esc(business.schedule || '')}" placeholder="Lun a Sáb de 9:00 a 20:00" />`)}
             ${field('Estado del comercio', `<select name="open" class="${inputCls}">
               <option value="open" ${business.open ? 'selected' : ''}>Abierto — recibe pedidos</option>
               <option value="closed" ${business.open ? '' : 'selected'}>Cerrado — no recibe pedidos</option>
@@ -1249,6 +1250,7 @@ const OwnerUI = (() => {
     const zonePrices = data.getAll('zonePrice');
     const logo = String(data.get('logo') || '').trim();
     const tagline = String(data.get('tagline') || '').trim();
+    const schedule = String(data.get('schedule') || '').trim();
     const open = String(data.get('open') || 'open') === 'open';
     const bannerImages = [];
     const seenBanners = new Set();
@@ -1258,6 +1260,7 @@ const OwnerUI = (() => {
     if (!['fixed', 'zones', 'whatsapp'].includes(shippingMode)) return Utils.toast('Elige una forma válida de cobrar el delivery.', 'error');
     if (!Number.isFinite(shippingCost) || shippingCost < 0) return Utils.toast('El precio del delivery no es válido.', 'error');
     if (!isHttpUrl(logo)) return Utils.toast('La URL de la foto debe empezar con http:// o https://', 'error');
+    if (schedule.length > 120) return Utils.toast('El horario es demasiado largo.', 'error');
 
     for (const rawBanner of data.getAll('bannerUrl')) {
       const banner = String(rawBanner || '').trim();
@@ -1290,7 +1293,7 @@ const OwnerUI = (() => {
 
     try {
       await Store.updateBusinessProfile(session.businessSlug, {
-        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, open, bannerImages
+        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, schedule, open, bannerImages
       });
       Utils.toast('Datos de la tienda actualizados.');
       Utils.closeModal();

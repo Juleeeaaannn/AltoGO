@@ -88,56 +88,75 @@ const Storefront = (() => {
       </div>`;
   };
 
-  /* Banner promocional del comercio: carrusel manual sobre el catálogo. */
-  const bannerCarousel = (business, ownerMode) => {
+  /* Hero del comercio: banner de fondo a pantalla completa + datos encima. */
+  const businessHero = (business, ownerMode) => {
     const images = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 8) : [];
-    if (!images.length) {
-      return ownerMode ? `
-        <section class="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p class="text-sm font-semibold">Muestra tus ofertas en el banner</p>
-              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Agrega hasta 8 imágenes y aparecerán en un carrusel arriba de tus productos.</p>
-            </div>
-            <button type="button" data-action="owner-settings" class="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700">
-              ${Utils.icon('plus', 'h-4 w-4')} Agregar banner
-            </button>
-          </div>
-        </section>` : '';
-    }
-
     const multiple = images.length > 1;
+    const status = Utils.openMeta(business.open);
+    const schedule = String(business.schedule || '').trim();
+    const productCount = Store.products(business.slug).length;
+    const [from, to] = hashTone(business.name);
+
     return `
-      <section class="mt-4" data-banner>
-        <div class="relative overflow-hidden rounded-2xl border border-ink/5 bg-ink shadow-sm">
-          <div data-banner-track data-count="${images.length}" class="banner-track no-scrollbar">
+      <section class="relative isolate -mx-4 aspect-[6/7] max-h-[700px] min-h-[450px] overflow-hidden bg-ink text-white sm:-mx-6 sm:aspect-[16/9] sm:min-h-[400px] lg:aspect-[13/5]" data-banner>
+        ${images.length ? `
+          <div data-banner-track data-count="${images.length}" class="banner-track no-scrollbar absolute inset-0 h-full w-full">
             ${images.map((image, index) => `
-              <div class="banner-slide">
+              <div class="banner-slide h-full">
                 <img src="${Utils.esc(image)}" alt="${Utils.esc(business.name)} — banner ${index + 1}"
-                  class="h-44 w-full object-cover sm:h-64 lg:h-72" loading="${index === 0 ? 'eager' : 'lazy'}" />
+                  class="h-full w-full object-cover" loading="${index === 0 ? 'eager' : 'lazy'}" />
               </div>`).join('')}
+          </div>` : `
+          <div class="absolute inset-0" style="background-image: linear-gradient(145deg, ${from}, ${to});">
+            <span class="absolute -right-16 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl"></span>
+          </div>`}
+
+        <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink via-ink/55 to-ink/10"></div>
+        <div class="pointer-events-none absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-ink/55 to-transparent"></div>
+
+        <div class="relative z-10 flex h-full flex-col justify-end px-4 pb-4 pt-20 sm:px-6 sm:pb-6">
+          <div class="flex items-end gap-3 sm:gap-4">
+            <div class="shrink-0 rounded-2xl shadow-xl ring-2 ring-white/50">
+              ${logoMark(business, 'h-14 w-14 sm:h-20 sm:w-20', 'text-lg sm:text-2xl')}
+            </div>
+            <div class="min-w-0 flex-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <h1 class="truncate font-display text-2xl font-semibold drop-shadow sm:text-4xl">${Utils.esc(business.name)}</h1>
+                <span class="rounded-full px-2.5 py-1 text-[10px] font-bold ${status.cls}">${status.label}</span>
+              </div>
+              <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-white/85 drop-shadow sm:text-sm">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
+            </div>
           </div>
 
-          ${multiple ? `
-            <button type="button" data-action="banner-prev" aria-label="Banner anterior"
-              class="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/55 text-white shadow-sm backdrop-blur transition hover:bg-ink/75">
-              ${Utils.icon('back', 'h-4 w-4')}
-            </button>
-            <button type="button" data-action="banner-next" aria-label="Banner siguiente"
-              class="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/55 text-white shadow-sm backdrop-blur transition hover:bg-ink/75">
-              ${Utils.icon('forward', 'h-4 w-4')}
-            </button>
-            <div class="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-ink/55 to-transparent px-4 pb-2.5 pt-8">
-              ${images.map((_, index) => `
-                <button type="button" data-action="banner-dot" data-index="${index}" aria-label="Ir al banner ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}"
-                  class="pointer-events-auto mx-0.5 h-2 rounded-full transition-all ${index === 0 ? 'w-5 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'}"></button>`).join('')}
-            </div>` : ''}
+          <div class="mt-3 flex flex-wrap gap-1.5 text-[10px] font-medium sm:text-[11px]">
+            ${schedule ? `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">
+              ${Utils.icon('clock', 'h-3.5 w-3.5 shrink-0')}<span class="truncate">${Utils.esc(schedule)}</span>
+            </span>` : ''}
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">${Utils.icon('bag', 'h-3.5 w-3.5')} ${Store.deliveryLabel(business)}</span>
+            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
+          </div>
 
-          ${ownerMode ? `
-            <button type="button" data-action="owner-settings" class="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/55 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-ink/75">
-              ${Utils.icon('edit', 'h-3.5 w-3.5')} Editar banner
-            </button>` : ''}
+          ${multiple ? `<div class="mt-3 flex items-center gap-1">
+            ${images.map((_, index) => `
+              <button type="button" data-action="banner-dot" data-index="${index}" aria-label="Ir al banner ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}"
+                class="h-2 rounded-full transition-all ${index === 0 ? 'w-6 bg-white' : 'w-2 bg-white/50 hover:bg-white/80'}"></button>`).join('')}
+          </div>` : ''}
         </div>
+
+        ${multiple ? `
+          <button type="button" data-action="banner-prev" aria-label="Banner anterior"
+            class="absolute left-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/40 text-white shadow-sm backdrop-blur transition hover:bg-ink/70 sm:left-4">
+            ${Utils.icon('back', 'h-4 w-4')}
+          </button>
+          <button type="button" data-action="banner-next" aria-label="Banner siguiente"
+            class="absolute right-2 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/40 text-white shadow-sm backdrop-blur transition hover:bg-ink/70 sm:right-4">
+            ${Utils.icon('forward', 'h-4 w-4')}
+          </button>` : ''}
+
+        ${ownerMode ? `
+          <button type="button" data-action="owner-settings" class="absolute right-3 top-16 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/50 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-ink/75 sm:top-20">
+            ${Utils.icon(images.length ? 'edit' : 'plus', 'h-3.5 w-3.5')} ${images.length ? 'Editar banner' : 'Agregar banner'}
+          </button>` : ''}
       </section>`;
   };
 
@@ -153,7 +172,7 @@ const Storefront = (() => {
     const card = (business) => {
       const productCount = Store.productCountOf(business);
       const status = Utils.openMeta(business.open);
-      const isOpen = business.open;
+      const schedule = String(business.schedule || '').trim();
       return `
         <a href="/negocio/${encodeURIComponent(business.slug)}"
           class="group flex min-w-0 items-center gap-3 rounded-2xl border border-ink/5 bg-white p-3.5 transition duration-200 hover:border-ink/15 hover:shadow-[0_16px_35px_-26px_rgba(11,21,17,.5)] sm:gap-4 sm:p-4">
@@ -161,19 +180,23 @@ const Storefront = (() => {
           <div class="min-w-0 flex-1">
             <div class="flex items-center gap-2">
               <h3 class="truncate font-display text-[15px] font-semibold leading-tight sm:text-base">${Utils.esc(business.name)}</h3>
-              ${isOpen ? '' : `<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${status.cls}">${status.label}</span>`}
             </div>
             <p class="mt-0.5 truncate text-[11px] text-moss sm:text-xs">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
+            ${schedule ? `<p class="mt-1 flex items-center gap-1 truncate text-[10px] text-moss sm:text-[11px]">
+              ${Utils.icon('clock', 'h-3 w-3 shrink-0')}<span class="truncate">${Utils.esc(schedule)}</span>
+            </p>` : ''}
             <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-moss sm:text-[11px]">
               <span>${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
               <span class="h-1 w-1 rounded-full bg-ink/15"></span>
               <span>${Store.deliveryLabel(business)}</span>
-              ${isOpen ? '<span class="hidden items-center gap-1 sm:inline-flex"><span class="h-1 w-1 rounded-full bg-emerald-500"></span> Abierto</span>' : ''}
             </div>
           </div>
-          <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#F4F5F7] text-ink transition group-hover:bg-lime">
-            ${Utils.icon('forward', 'h-3.5 w-3.5')}
-          </span>
+          <div class="flex shrink-0 flex-col items-end gap-2">
+            <span class="rounded-full px-2.5 py-1 text-[10px] font-bold ${status.cls}">${status.label}</span>
+            <span class="grid h-8 w-8 place-items-center rounded-full bg-[#F4F5F7] text-ink transition group-hover:bg-lime">
+              ${Utils.icon('forward', 'h-3.5 w-3.5')}
+            </span>
+          </div>
         </a>`;
     };
 
@@ -413,14 +436,12 @@ const Storefront = (() => {
 
     document.title = `${business.name} · ${ALTOGO.brand.name}`;
     Cart.attach(business, ownerMode);
-
-    const products = Store.products(business.slug);
-    const status = Utils.openMeta(business.open);
+    requestAnimationFrame(() => syncCatalogHeader());
 
     return `
       <div class="min-h-screen bg-white">
         <!-- Barra superior: "Atrás" siempre visible -->
-        <header class="sticky top-0 z-40 border-b border-ink/5 bg-white/90 backdrop-blur-xl">
+        <header id="catalog-header" class="catalog-header fixed inset-x-0 top-0 z-40 border-b border-transparent">
           <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
             <a href="/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
               <span class="grid h-7 w-7 place-items-center rounded-full bg-cream">${Utils.icon('back', 'h-3.5 w-3.5')}</span>
@@ -440,29 +461,13 @@ const Storefront = (() => {
                   ${Utils.icon('chart', 'h-4 w-4')}
                 </a>` : ''}
               ${!ownerMode && !superMode ? `
-                 <span class="font-display text-2xl font-bold tracking-tight text-[#00197D]">Alto<span class="text-[#FF2F35] italic">GO</span></span>` : ''}
+                 <span class="rounded-full bg-white/90 px-2.5 py-1 font-display text-2xl font-bold tracking-tight text-[#00197D] shadow-sm backdrop-blur">Alto<span class="text-[#FF2F35] italic">GO</span></span>` : ''}
             </div>
           </div>
         </header>
 
-        <main class="mx-auto max-w-6xl px-4 pb-32 pt-4 sm:px-6 sm:pb-24 sm:pt-6">
-          <!-- Encabezado del negocio -->
-          <section class="rounded-2xl border border-ink/5 bg-white p-5 sm:p-6">
-            <div class="flex items-start gap-4">
-              ${logoMark(business, 'h-14 w-14 sm:h-16 sm:w-16', 'text-lg sm:text-xl')}
-              <div class="min-w-0 flex-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <h1 class="truncate font-display text-2xl font-semibold sm:text-3xl">${Utils.esc(business.name)}</h1>
-                  <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}">${status.label}</span>
-                </div>
-                <p class="mt-1 line-clamp-2 text-xs leading-relaxed text-moss sm:text-sm">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
-                <div class="mt-3 flex flex-wrap gap-1.5 text-[11px] text-moss">
-                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${Utils.icon('bag', 'h-3.5 w-3.5')} ${Store.deliveryLabel(business)}</span>
-                  <span class="inline-flex items-center gap-1.5 rounded-full bg-[#F4F5F7] px-2.5 py-1">${products.length} ${products.length === 1 ? 'producto' : 'productos'}</span>
-                </div>
-              </div>
-            </div>
-          </section>
+        <main class="mx-auto max-w-6xl px-4 pb-32 sm:px-6 sm:pb-24">
+          ${businessHero(business, ownerMode)}
 
           ${ownerMode ? OwnerUI.toolbar(business) : ''}
           ${ownerMode && (business.status === 'oculto' || !business.open) ? `
@@ -472,8 +477,6 @@ const Storefront = (() => {
                 ? 'Los clientes no pueden ver el catálogo. Pídele al super administrador que lo publique.'
                 : 'Los clientes ven el catálogo, pero no pueden enviar pedidos. Puedes abrirlo desde Mi tienda.'}
             </div>` : ''}
-
-          ${bannerCarousel(business, ownerMode)}
 
           <!-- Buscador + filtros -->
           <section class="mt-5">
@@ -605,10 +608,12 @@ const Storefront = (() => {
     track.scrollBy({ left: Number(el.dataset.dir || 1) * step });
   });
 
-  const updateBannerDots = (track) => {
+  const updateBannerDots = (track, forcedIndex = null) => {
     if (!track) return;
     const count = Number(track.dataset.count) || 0;
-    const index = count ? Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) : 0;
+    const index = forcedIndex === null
+      ? (count ? Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) : 0)
+      : forcedIndex;
     track.parentElement.querySelectorAll('[data-action="banner-dot"]').forEach((dot, dotIndex) => {
       const active = dotIndex === index;
       dot.classList.toggle('w-5', active);
@@ -620,10 +625,19 @@ const Storefront = (() => {
     });
   };
 
+  const syncCatalogHeader = () => {
+    const header = document.getElementById('catalog-header');
+    if (!header) return;
+    header.classList.toggle('is-scrolled', window.scrollY > 24);
+  };
+
+  window.addEventListener('scroll', syncCatalogHeader, { passive: true });
+
   const goToBanner = (track, index) => {
     if (!track) return;
     const count = Number(track.dataset.count) || 1;
     const next = ((index % count) + count) % count;
+    updateBannerDots(track, next);
     track.scrollTo({ left: next * track.clientWidth });
   };
 

@@ -230,6 +230,7 @@ const Store = (() => {
             .filter((image) => image.length <= 1000 && /^https?:\/\//i.test(image))
         )).slice(0, 8)
       : [];
+    business.schedule = String(business.schedule || '').trim().slice(0, 120);
     return business;
   };
 
@@ -726,6 +727,7 @@ const Store = (() => {
         p_logo: data.logo || '',
         p_open: Boolean(data.open),
         p_tagline: data.tagline || '',
+        p_schedule: data.schedule || '',
         p_banner_images: Array.isArray(data.bannerImages) ? data.bannerImages : []
       });
       await refresh();
@@ -735,6 +737,7 @@ const Store = (() => {
     if (!target) return null;
     target.name = data.name;
     target.tagline = data.tagline || '';
+    target.schedule = data.schedule || '';
     target.whatsapp = data.whatsapp;
     target.shippingMode = data.shippingMode || 'fixed';
     target.shippingCost = Math.max(0, Number(data.shippingCost) || 0);

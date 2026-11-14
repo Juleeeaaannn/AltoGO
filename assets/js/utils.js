@@ -99,6 +99,7 @@ const Utils = (() => {
     eye: '<path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z"/><circle cx="12" cy="12" r="2.5"/>',
     check: '<path d="m5 13 4 4L19 7"/>',
     alert: '<path d="M12 3 2 21h20L12 3Z"/><path d="M12 10v5M12 18h.01"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     spark: '<path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18"/>',
     whatsapp: '<path fill="currentColor" stroke="none" d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.33 4.95L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22c5.46 0 9.91-4.45 9.91-9.91C21.95 6.45 17.5 2 12.04 2Zm5.8 14.13c-.24.68-1.4 1.3-1.94 1.35-.5.05-.98.23-3.3-.69-2.77-1.1-4.55-3.9-4.69-4.08-.14-.19-1.12-1.5-1.12-2.86 0-1.36.71-2.03.96-2.31.25-.28.55-.35.73-.35h.52c.17.01.39-.06.61.47.24.57.8 1.96.87 2.1.07.14.12.31.02.5-.1.19-.15.31-.29.47-.14.16-.3.35-.43.47-.14.14-.29.3-.12.58.16.28.73 1.2 1.57 1.95 1.08.96 1.99 1.26 2.27 1.4.28.14.44.12.6-.07.16-.19.7-.81.88-1.09.19-.28.37-.23.63-.14.25.09 1.62.77 1.9.91.28.14.46.21.53.33.07.12.07.68-.17 1.35Z"/>',
     menu: '<path d="M4 7h16M4 12h16M4 17h16"/>'
@@ -180,8 +181,8 @@ const Utils = (() => {
   }[status] || { label: status, cls: 'bg-ink/5 text-moss' });
 
   const openMeta = (isOpen) => (isOpen
-    ? { label: 'Abierto', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' }
-    : { label: 'Cerrado', cls: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' });
+    ? { label: 'Abierto', cls: 'bg-emerald-500 text-white shadow-sm' }
+    : { label: 'Cerrado', cls: 'bg-rose-600 text-white shadow-sm' });
 
   return {
     esc, money, num, pct, normalize, slugify, digits, uid, initials, dateLabel, debounce,
