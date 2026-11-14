@@ -441,7 +441,7 @@ const Storefront = (() => {
     return `
       <div class="min-h-screen bg-white">
         <!-- Barra superior: "Atrás" siempre visible -->
-        <header id="catalog-header" class="catalog-header fixed inset-x-0 top-0 z-40 border-b border-transparent">
+        <header id="catalog-header" class="catalog-header fixed inset-x-0 top-0 z-40  border-transparent">
           <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
             <a href="/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
               <span class="grid h-7 w-7 place-items-center rounded-full bg-cream">${Utils.icon('back', 'h-3.5 w-3.5')}</span>
