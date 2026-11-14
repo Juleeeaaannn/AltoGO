@@ -223,6 +223,13 @@ const Store = (() => {
             .filter((category) => category.length >= 2 && category.length <= 40)
         ))
       : [];
+    business.bannerImages = Array.isArray(business.bannerImages)
+      ? Array.from(new Set(
+          business.bannerImages
+            .map((image) => String(image || '').trim())
+            .filter((image) => image.length <= 1000 && /^https?:\/\//i.test(image))
+        )).slice(0, 8)
+      : [];
     return business;
   };
 
@@ -234,6 +241,9 @@ const Store = (() => {
     if (!images.length && productItem.image) images.push(String(productItem.image).trim());
     productItem.images = Array.from(new Set(images)).slice(0, 8);
     productItem.image = productItem.images[0] || '';
+    const price = Math.max(0, Math.floor(Number(productItem.price) || 0));
+    const oldPrice = Math.max(0, Math.floor(Number(productItem.oldPrice) || 0));
+    productItem.oldPrice = price > 0 && oldPrice > price ? oldPrice : null;
     return productItem;
   };
 
@@ -417,6 +427,19 @@ const Store = (() => {
       exact: true,
       qty,
       label: qty === 1 ? 'Última unidad' : qty <= 3 ? `Últimas ${qty}` : `${qty} disponibles`
+    };
+  };
+
+  const discount = (item) => {
+    if (!item) return null;
+    const price = Math.max(0, Math.floor(Number(item.price) || 0));
+    const oldPrice = Math.max(0, Math.floor(Number(item.oldPrice) || 0));
+    if (!price || oldPrice <= price) return null;
+    return {
+      oldPrice,
+      price,
+      saving: oldPrice - price,
+      percent: Math.max(1, Math.min(99, Math.round((1 - price / oldPrice) * 100)))
     };
   };
 
@@ -608,6 +631,7 @@ const Store = (() => {
       shippingCost: Number(data.shippingCost) || 0,
       shippingZones: Array.isArray(data.shippingZones) ? data.shippingZones : [],
       logo: data.logo || '',
+      bannerImages: [],
       status: data.status || 'activo',
       open: true,
       tagline: data.tagline || '',
@@ -701,7 +725,8 @@ const Store = (() => {
         p_shipping_zones: Array.isArray(data.shippingZones) ? data.shippingZones : [],
         p_logo: data.logo || '',
         p_open: Boolean(data.open),
-        p_tagline: data.tagline || ''
+        p_tagline: data.tagline || '',
+        p_banner_images: Array.isArray(data.bannerImages) ? data.bannerImages : []
       });
       await refresh();
       return business(slug);
@@ -715,6 +740,7 @@ const Store = (() => {
     target.shippingCost = Math.max(0, Number(data.shippingCost) || 0);
     target.shippingZones = Array.isArray(data.shippingZones) ? data.shippingZones : [];
     target.logo = data.logo || '';
+    target.bannerImages = Array.isArray(data.bannerImages) ? data.bannerImages : [];
     if (typeof data.open === 'boolean') target.open = data.open;
     normalizeBusiness(target);
     const owner = userForBusiness(slug);
@@ -826,7 +852,8 @@ const Store = (() => {
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
         p_stock: data.stock,
-        p_images: Array.isArray(data.images) ? data.images : []
+        p_images: Array.isArray(data.images) ? data.images : [],
+        p_old_price: data.oldPrice ?? null
       });
       await refresh();
       return created;
@@ -839,6 +866,7 @@ const Store = (() => {
       price: Number(data.price) || 0,
       image: data.image || '',
       images: Array.isArray(data.images) ? data.images : [],
+      oldPrice: data.oldPrice ?? null,
       stock: data.stock
     };
     normalizeProduct(created);
@@ -856,7 +884,8 @@ const Store = (() => {
         p_price: Number(data.price) || 0,
         p_image: data.image || '',
         p_stock: data.stock,
-        p_images: Array.isArray(data.images) ? data.images : []
+        p_images: Array.isArray(data.images) ? data.images : [],
+        p_old_price: data.oldPrice ?? null
       });
       await refresh();
       return updated;
@@ -870,6 +899,7 @@ const Store = (() => {
       price: Number(data.price) || 0,
       image: data.image || '',
       images: Array.isArray(data.images) ? data.images : [],
+      oldPrice: data.oldPrice ?? null,
       stock: data.stock
     });
     normalizeProduct(target);
@@ -959,7 +989,7 @@ const Store = (() => {
     refresh, applySnapshot, loadView,
     businesses, listedBusinesses, business, deliveryInfo, deliveryLabel,
     products, catalogProducts, categoriesOf, product, productCount, productCountOf,
-    stock, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
+    stock, discount, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
     findUser, userForBusiness, usernameTaken,
     createBusiness, updateBusiness, updateBusinessProfile, renameCategory, saveCategoryOrder, updateAccess,
     moveBusiness, deleteBusiness, setBusinessStatus, slugTaken,

@@ -88,6 +88,59 @@ const Storefront = (() => {
       </div>`;
   };
 
+  /* Banner promocional del comercio: carrusel manual sobre el catálogo. */
+  const bannerCarousel = (business, ownerMode) => {
+    const images = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 8) : [];
+    if (!images.length) {
+      return ownerMode ? `
+        <section class="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/50 p-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p class="text-sm font-semibold">Muestra tus ofertas en el banner</p>
+              <p class="mt-0.5 text-[11px] leading-relaxed text-moss">Agrega hasta 8 imágenes y aparecerán en un carrusel arriba de tus productos.</p>
+            </div>
+            <button type="button" data-action="owner-settings" class="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-blue-700">
+              ${Utils.icon('plus', 'h-4 w-4')} Agregar banner
+            </button>
+          </div>
+        </section>` : '';
+    }
+
+    const multiple = images.length > 1;
+    return `
+      <section class="mt-4" data-banner>
+        <div class="relative overflow-hidden rounded-2xl border border-ink/5 bg-ink shadow-sm">
+          <div data-banner-track data-count="${images.length}" class="banner-track no-scrollbar">
+            ${images.map((image, index) => `
+              <div class="banner-slide">
+                <img src="${Utils.esc(image)}" alt="${Utils.esc(business.name)} — banner ${index + 1}"
+                  class="h-44 w-full object-cover sm:h-64 lg:h-72" loading="${index === 0 ? 'eager' : 'lazy'}" />
+              </div>`).join('')}
+          </div>
+
+          ${multiple ? `
+            <button type="button" data-action="banner-prev" aria-label="Banner anterior"
+              class="absolute left-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/55 text-white shadow-sm backdrop-blur transition hover:bg-ink/75">
+              ${Utils.icon('back', 'h-4 w-4')}
+            </button>
+            <button type="button" data-action="banner-next" aria-label="Banner siguiente"
+              class="absolute right-3 top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/20 bg-ink/55 text-white shadow-sm backdrop-blur transition hover:bg-ink/75">
+              ${Utils.icon('forward', 'h-4 w-4')}
+            </button>
+            <div class="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center bg-gradient-to-t from-ink/55 to-transparent px-4 pb-2.5 pt-8">
+              ${images.map((_, index) => `
+                <button type="button" data-action="banner-dot" data-index="${index}" aria-label="Ir al banner ${index + 1}" aria-current="${index === 0 ? 'true' : 'false'}"
+                  class="pointer-events-auto mx-0.5 h-2 rounded-full transition-all ${index === 0 ? 'w-5 bg-white' : 'w-2 bg-white/55 hover:bg-white/80'}"></button>`).join('')}
+            </div>` : ''}
+
+          ${ownerMode ? `
+            <button type="button" data-action="owner-settings" class="absolute right-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/25 bg-ink/55 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur transition hover:bg-ink/75">
+              ${Utils.icon('edit', 'h-3.5 w-3.5')} Editar banner
+            </button>` : ''}
+        </div>
+      </section>`;
+  };
+
   /* ------------------------------------------------------------------------
      HOME
      ------------------------------------------------------------------------ */
@@ -190,6 +243,7 @@ const Storefront = (() => {
      ------------------------------------------------------------------------ */
   const productCard = (product, ownerMode, extraClass = '') => {
     const stock = Store.stock(product);
+    const offer = Store.discount(product);
     const inCart = Cart.qtyOf(product.id);
     const stockBadge = stock.available
       ? (stock.exact && stock.qty <= 3
@@ -206,7 +260,10 @@ const Storefront = (() => {
         class="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-ink/5 bg-white shadow-[0_1px_0_rgba(11,21,17,.03)] transition duration-200 hover:-translate-y-0.5 hover:shadow-card ${ownerMode ? 'ring-1 ring-blue-300/80 hover:ring-2 hover:ring-blue-400' : ''} ${extraClass}">
         <div class="relative aspect-[4/3] overflow-hidden bg-white">
           ${productMedia(product)}
-          <span class="absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur ${stockBadge}">${stock.label}</span>
+          <div class="absolute left-2 top-2 z-10 flex flex-col items-start gap-1">
+            ${offer ? `<span class="rounded-full bg-rose-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">-${offer.percent}%</span>` : ''}
+            <span class="rounded-full px-2 py-0.5 text-[10px] font-semibold backdrop-blur ${stockBadge}">${stock.label}</span>
+          </div>
           ${ownerMode
             ? `<span class="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-blue-600 text-white shadow-md">${Utils.icon('edit', 'h-4 w-4')}</span>`
             : `<button type="button" data-action="add-to-cart" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
@@ -219,7 +276,10 @@ const Storefront = (() => {
           <span class="text-[10px] font-semibold uppercase tracking-wider text-moss/70">${Utils.esc(product.category)}</span>
           <h3 class="mt-1 line-clamp-2 text-sm font-semibold leading-snug">${Utils.esc(product.name)}</h3>
           <div class="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
-            <span class="min-w-0 whitespace-nowrap font-display text-base font-semibold tabular sm:text-lg">${Utils.money(product.price)}</span>
+            <div class="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
+              <span class="whitespace-nowrap font-display text-base font-semibold tabular sm:text-lg">${Utils.money(product.price)}</span>
+              ${offer ? `<span class="text-[11px] font-medium text-moss/60 line-through">${Utils.money(offer.oldPrice)}</span>` : ''}
+            </div>
             ${ownerMode
               ? `<span class="inline-flex shrink-0 items-center gap-1 rounded-xl bg-blue-50 px-2.5 py-2 text-[11px] font-semibold text-blue-700">Editar</span>`
               : ''}
@@ -413,6 +473,8 @@ const Storefront = (() => {
                 : 'Los clientes ven el catálogo, pero no pueden enviar pedidos. Puedes abrirlo desde Mi tienda.'}
             </div>` : ''}
 
+          ${bannerCarousel(business, ownerMode)}
+
           <!-- Buscador + filtros -->
           <section class="mt-5">
             <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -543,6 +605,50 @@ const Storefront = (() => {
     track.scrollBy({ left: Number(el.dataset.dir || 1) * step });
   });
 
+  const updateBannerDots = (track) => {
+    if (!track) return;
+    const count = Number(track.dataset.count) || 0;
+    const index = count ? Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) : 0;
+    track.parentElement.querySelectorAll('[data-action="banner-dot"]').forEach((dot, dotIndex) => {
+      const active = dotIndex === index;
+      dot.classList.toggle('w-5', active);
+      dot.classList.toggle('bg-white', active);
+      dot.classList.toggle('w-2', !active);
+      dot.classList.toggle('bg-white/55', !active);
+      if (active) dot.setAttribute('aria-current', 'true');
+      else dot.removeAttribute('aria-current');
+    });
+  };
+
+  const goToBanner = (track, index) => {
+    if (!track) return;
+    const count = Number(track.dataset.count) || 1;
+    const next = ((index % count) + count) % count;
+    track.scrollTo({ left: next * track.clientWidth });
+  };
+
+  Events.onAction('banner-prev', (el) => {
+    const track = el.closest('[data-banner]')?.querySelector('[data-banner-track]');
+    if (!track) return;
+    goToBanner(track, Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) - 1);
+  });
+
+  Events.onAction('banner-next', (el) => {
+    const track = el.closest('[data-banner]')?.querySelector('[data-banner-track]');
+    if (!track) return;
+    goToBanner(track, Math.round(track.scrollLeft / Math.max(1, track.clientWidth)) + 1);
+  });
+
+  Events.onAction('banner-dot', (el) => {
+    const track = el.closest('[data-banner]')?.querySelector('[data-banner-track]');
+    goToBanner(track, Number(el.dataset.index) || 0);
+  });
+
+  document.addEventListener('scroll', (event) => {
+    const track = event.target;
+    if (track && track.matches && track.matches('[data-banner-track]')) updateBannerDots(track);
+  }, true);
+
   Events.onAction('add-to-cart', (el) => {
     const product = Store.product(el.dataset.id);
     if (!product) return;
@@ -560,6 +666,7 @@ const Storefront = (() => {
     const product = Store.product(el.dataset.id);
     if (!product) return;
     const stock = Store.stock(product);
+    const offer = Store.discount(product);
     const stockCls = stock.available
       ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200'
       : 'bg-rose-50 text-rose-700 ring-1 ring-rose-200';
@@ -573,8 +680,14 @@ const Storefront = (() => {
         <div class="mt-4 flex flex-wrap items-end justify-between gap-3">
           <div>
             <p class="text-[10px] font-semibold uppercase tracking-wider text-moss">Precio</p>
-            <p class="font-display text-3xl font-semibold tabular">${Utils.money(product.price)}</p>
-            <span class="mt-2 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${stockCls}">${stock.label}</span>
+            <div class="flex flex-wrap items-baseline gap-2">
+              <p class="font-display text-3xl font-semibold tabular">${Utils.money(product.price)}</p>
+              ${offer ? `<p class="text-sm font-medium text-moss/60 line-through">${Utils.money(offer.oldPrice)}</p>` : ''}
+            </div>
+            <div class="mt-2 flex flex-wrap items-center gap-1.5">
+              <span class="inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${stockCls}">${stock.label}</span>
+              ${offer ? `<span class="inline-flex rounded-full bg-rose-600 px-2.5 py-1 text-[11px] font-bold text-white">-${offer.percent}% de descuento</span>` : ''}
+            </div>
           </div>
           <button type="button" data-action="product-modal-add" data-id="${product.id}" ${stock.available ? '' : 'disabled'}
             class="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${stock.available ? 'bg-emerald-600 text-white hover:bg-emerald-700' : 'cursor-not-allowed bg-ink/5 text-moss'}">

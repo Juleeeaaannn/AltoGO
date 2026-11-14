@@ -714,6 +714,16 @@ const OwnerUI = (() => {
       </button>
     </div>`;
 
+  const bannerImageRow = (url = '', index = 0) => `
+    <div data-banner-image-row="" class="flex items-center gap-2">
+      <input name="bannerUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Imagen ${index + 1} del banner" />
+      <button type="button" data-action="banner-image-remove" aria-label="Quitar imagen del banner"
+        class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
+        ${Utils.icon('trash', 'h-4 w-4')}
+      </button>
+    </div>`;
+
   const openSettings = () => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
@@ -721,6 +731,8 @@ const OwnerUI = (() => {
     if (!business) return;
     const mode = business.shippingMode || 'fixed';
     const zones = Array.isArray(business.shippingZones) ? business.shippingZones : [];
+    const bannerImages = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 8) : [];
+    const bannerRows = bannerImages.length ? bannerImages : [''];
 
     Utils.openModal({
       title: 'Mi tienda',
@@ -738,6 +750,20 @@ const OwnerUI = (() => {
             </select>`)}
             ${field('Biografía', `<textarea name="tagline" rows="3" maxlength="160" class="${inputCls} resize-none" placeholder="Productos frescos y básicos para tu casa.">${Utils.esc(business.tagline)}</textarea>`, 'sm:col-span-2')}
           </div>
+
+          <section class="rounded-2xl border border-ink/10 bg-cream/50 p-4">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p class="${labelCls}">Banner de la tienda</p>
+                <p class="mt-1 text-[11px] leading-relaxed text-moss">Hasta 8 imágenes para mostrar ofertas o productos destacados. Se ven en un carrusel arriba del catálogo.</p>
+              </div>
+              <button type="button" data-action="banner-image-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
+                ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar imagen
+              </button>
+            </div>
+            <div id="banner-image-rows" class="mt-3 space-y-2">${bannerRows.map((image, index) => bannerImageRow(image, index)).join('')}</div>
+            <p class="mt-2 text-[10px] leading-relaxed text-moss">Recomendado: imágenes horizontales de 1600 × 600 px (JPG, PNG o WebP).</p>
+          </section>
 
           <section class="rounded-2xl border border-ink/10 bg-cream/50 p-4">
             <label class="block">
@@ -770,7 +796,7 @@ const OwnerUI = (() => {
             </div>
           </section>
 
-          <p class="text-[11px] leading-relaxed text-moss">La foto es opcional: si la dejas vacía se usan tus iniciales. Si cierras el comercio, los clientes podrán ver el catálogo pero no enviar pedidos.</p>
+          <p class="text-[11px] leading-relaxed text-moss">La foto y el banner son opcionales. Si no agregas banner, el catálogo se muestra directamente. Si cierras el comercio, los clientes podrán ver el catálogo pero no enviar pedidos.</p>
           <div class="flex flex-col-reverse gap-2 border-t border-ink/5 pt-4 sm:flex-row sm:justify-end">
             <button type="button" data-action="modal-close" class="${ghostBtn}">Cancelar</button>
             <button type="submit" class="${primaryBtn}">Guardar cambios</button>
@@ -961,6 +987,29 @@ const OwnerUI = (() => {
       </button>
     </div>`;
 
+  const syncDiscountPreview = () => {
+    const form = document.querySelector('form[data-form="product-save"]');
+    const preview = document.getElementById('discount-preview');
+    if (!form || !preview) return;
+
+    const price = Number(form.elements.price ? form.elements.price.value : 0);
+    const oldPrice = Number(form.elements.oldPrice ? form.elements.oldPrice.value : 0);
+    const offer = Store.discount({ price, oldPrice });
+
+    if (!oldPrice) {
+      preview.textContent = '';
+      preview.classList.add('hidden');
+      return;
+    }
+
+    preview.classList.remove('hidden');
+    if (!offer) {
+      preview.textContent = 'El precio anterior debe ser mayor que el precio nuevo para mostrar el descuento.';
+      return;
+    }
+    preview.innerHTML = `<strong class="text-rose-700">-${offer.percent}%</strong> de descuento · el cliente ve ${Utils.money(offer.oldPrice)} tachado y paga ${Utils.money(offer.price)}.`;
+  };
+
   const openProduct = (productId = null) => {
     const session = Auth.current();
     if (!session || session.role !== 'owner') return;
@@ -986,10 +1035,13 @@ const OwnerUI = (() => {
         <input type="hidden" name="id" value="${product ? product.id : ''}" />
         <div class="grid gap-3 sm:grid-cols-2">
           ${field('Nombre del producto', `<input name="name" required maxlength="80" class="${inputCls}" value="${product ? Utils.esc(product.name) : ''}" placeholder="Arroz largo fino 1 kg" />`, 'sm:col-span-2')}
-          ${field('Precio (ARS)', `<input name="price" type="number" min="1" step="1" required class="${inputCls}" value="${product ? product.price : ''}" placeholder="75" />`)}
+          ${field('Precio anterior (ARS)', `<input name="oldPrice" data-input="product-old-price" type="number" min="1" step="1" class="${inputCls}" value="${product && product.oldPrice ? product.oldPrice : ''}" placeholder="Opcional" />`)}
+          ${field('Precio nuevo (ARS)', `<input name="price" data-input="product-price" type="number" min="1" step="1" required class="${inputCls}" value="${product ? product.price : ''}" placeholder="75" />`)}
           ${field('Categoría', `<input name="category" required list="categorias-sugeridas" class="${inputCls}" value="${product ? Utils.esc(product.category) : ''}" placeholder="Almacén" />
             <datalist id="categorias-sugeridas">${categories.map((category) => `<option value="${Utils.esc(category)}"></option>`).join('')}</datalist>`)}
         </div>
+
+        <p id="discount-preview" class="hidden rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900"></p>
 
         <section class="rounded-2xl border border-ink/10 bg-[#F7F8FA] p-3.5">
           <div class="flex flex-wrap items-center justify-between gap-2">
@@ -1056,6 +1108,7 @@ const OwnerUI = (() => {
       body,
       size: 'lg'
     });
+    syncDiscountPreview();
   };
 
   const openDeleteProduct = (productId) => {
@@ -1104,6 +1157,23 @@ const OwnerUI = (() => {
     if (row) row.remove();
   });
 
+  Events.onAction('banner-image-add', () => {
+    const rows = document.getElementById('banner-image-rows');
+    if (!rows) return;
+    const count = rows.querySelectorAll('[data-banner-image-row]').length;
+    if (count >= 8) {
+      return Utils.toast('Puedes agregar hasta 8 imágenes al banner.', 'warning');
+    }
+    rows.insertAdjacentHTML('beforeend', bannerImageRow('', count));
+    const added = rows.querySelector('[data-banner-image-row]:last-child input[name="bannerUrl"]');
+    if (added) added.focus();
+  });
+
+  Events.onAction('banner-image-remove', (el) => {
+    const row = el.closest('[data-banner-image-row]');
+    if (row) row.remove();
+  });
+
   Events.onAction('category-move', (el) => {
     const row = el.closest('[data-category-row]');
     const container = row ? row.parentElement : null;
@@ -1141,6 +1211,9 @@ const OwnerUI = (() => {
     if (boolWrap) boolWrap.classList.toggle('hidden', el.value !== 'bool');
   });
 
+  Events.onInput('product-price', () => syncDiscountPreview());
+  Events.onInput('product-old-price', () => syncDiscountPreview());
+
   Events.onChange('shipping-mode', (el) => {
     const fixed = document.getElementById('shipping-fixed-wrap');
     const zones = document.getElementById('shipping-zones-wrap');
@@ -1177,12 +1250,25 @@ const OwnerUI = (() => {
     const logo = String(data.get('logo') || '').trim();
     const tagline = String(data.get('tagline') || '').trim();
     const open = String(data.get('open') || 'open') === 'open';
+    const bannerImages = [];
+    const seenBanners = new Set();
 
     if (!name) return Utils.toast('Tu tienda necesita un nombre.', 'error');
     if (whatsapp.length < 8) return Utils.toast('Captura un WhatsApp válido con código de país.', 'error');
     if (!['fixed', 'zones', 'whatsapp'].includes(shippingMode)) return Utils.toast('Elige una forma válida de cobrar el delivery.', 'error');
     if (!Number.isFinite(shippingCost) || shippingCost < 0) return Utils.toast('El precio del delivery no es válido.', 'error');
     if (!isHttpUrl(logo)) return Utils.toast('La URL de la foto debe empezar con http:// o https://', 'error');
+
+    for (const rawBanner of data.getAll('bannerUrl')) {
+      const banner = String(rawBanner || '').trim();
+      if (!banner) continue;
+      if (!isHttpUrl(banner)) return Utils.toast('Cada imagen del banner debe empezar con http:// o https://', 'error');
+      if (banner.length > 1000) return Utils.toast('Una imagen del banner tiene una URL demasiado larga.', 'error');
+      if (seenBanners.has(banner)) return Utils.toast('No repitas la misma imagen en el banner.', 'error');
+      seenBanners.add(banner);
+      bannerImages.push(banner);
+    }
+    if (bannerImages.length > 8) return Utils.toast('Puedes agregar hasta 8 imágenes al banner.', 'error');
 
     const shippingZones = [];
     const seenZones = [];
@@ -1204,7 +1290,7 @@ const OwnerUI = (() => {
 
     try {
       await Store.updateBusinessProfile(session.businessSlug, {
-        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, open
+        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, open, bannerImages
       });
       Utils.toast('Datos de la tienda actualizados.');
       Utils.closeModal();
@@ -1264,12 +1350,17 @@ const OwnerUI = (() => {
     const name = String(data.get('name') || '').trim();
     const category = String(data.get('category') || '').trim();
     const price = Number(data.get('price'));
+    const oldPriceRaw = String(data.get('oldPrice') || '').trim();
+    const oldPrice = oldPriceRaw ? Math.floor(Number(oldPriceRaw)) : null;
     const mode = String(data.get('stockMode') || 'qty');
     const images = [];
     const seenImages = new Set();
 
     if (!name) return Utils.toast('El producto necesita un nombre.', 'error');
     if (!Number.isFinite(price) || price <= 0) return Utils.toast('Indica un precio mayor a cero.', 'error');
+    if (oldPrice !== null && (!Number.isFinite(oldPrice) || oldPrice <= price)) {
+      return Utils.toast('El precio anterior debe ser mayor que el precio nuevo.', 'error');
+    }
     if (!category) return Utils.toast('Indica una categoría.', 'error');
 
     for (const rawImage of data.getAll('imageUrl')) {
@@ -1287,7 +1378,7 @@ const OwnerUI = (() => {
       ? data.get('available') === 'on'
       : Math.max(0, Math.floor(Number(data.get('qty')) || 0));
 
-    const payload = { name, category, price, image: images[0] || '', images, stock };
+    const payload = { name, category, price, oldPrice, image: images[0] || '', images, stock };
 
     try {
       if (id) {
