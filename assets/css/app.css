@@ -41,6 +41,16 @@ body {
 }
 
 /* Carrusel horizontal de productos por categoría (vista "Todas"). */
+.banner-track {
+  display: flex;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+}
+.banner-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+}
 .category-track {
   overscroll-behavior-x: contain;
   scroll-behavior: smooth;
@@ -147,5 +157,6 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
   html { scroll-behavior: auto; }
+  .banner-track { scroll-behavior: auto; }
   .category-track { scroll-behavior: auto; }
 }
