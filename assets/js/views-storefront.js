@@ -139,7 +139,7 @@ const Storefront = (() => {
 
   /* Hero del comercio: banner de fondo a pantalla completa + datos encima. */
   const businessHero = (business, ownerMode) => {
-    const images = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 8) : [];
+    const images = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 1) : [];
     const multiple = images.length > 1;
     const status = Utils.openMeta(business.open);
     const schedule = String(business.schedule || '').trim();
@@ -238,7 +238,7 @@ const Storefront = (() => {
         <a href="/negocio/${encodeURIComponent(business.slug)}"
           data-home-card data-slug="${Utils.esc(business.slug)}"
           class="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-ink/5 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-[0_22px_45px_-30px_rgba(11,21,17,.55)]">
-          ${banner ? `<div class="relative aspect-[16/7] w-full overflow-hidden bg-cream">
+          ${banner ? `<div class="relative aspect-[16/5] w-full overflow-hidden bg-cream">
             <img src="${Utils.esc(banner)}" alt="Banner de ${Utils.esc(business.name)}"
               class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" decoding="async" />
             <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/20 via-transparent to-transparent"></div>
@@ -259,7 +259,6 @@ const Storefront = (() => {
           </div>
 
           ${shownCategories.length ? `<div class="mt-3">
-            <p class="text-[9px] font-semibold uppercase tracking-wider text-moss/60">Tiene</p>
             <div class="mt-1 flex flex-wrap gap-1">
               ${shownCategories.map((category) => `<span class="rounded-full bg-cream px-2 py-1 text-[10px] font-medium text-ink">${Utils.esc(category)}</span>`).join('')}
               ${categories.length > shownCategories.length ? `<span class="rounded-full bg-cream px-2 py-1 text-[10px] font-medium text-moss">+${categories.length - shownCategories.length}</span>` : ''}
@@ -297,8 +296,20 @@ const Storefront = (() => {
               <a href="https://wa.me/5492646238873" target="_blank" rel="noopener noreferrer" class="font-semibold text-ink underline underline-offset-2">Escribinos</a>
           </div>
         </header>
-
-        <main class="mx-auto max-w-6xl px-4 pb-16 pt-5 sm:px-6 sm:pt-8">
+        <div class="mx-auto max-w-6xl px-4 py-6 sm:px-6 sm:py-8">
+          <div class="fixed bottom-4 right-6 left-6 z-50 gap-2 sm:bottom-6 sm:right-6 sm:left-6 ">
+            <a class="grid grid-flow-col grid-rows-2 gap-5 justify-between gap-2 transition hover:from-[#00197D] hover:to-[#4F46E5] rounded-2xl bg-gradient-to-r from-[#4F46E5] to-[#00197D] px-4 py-3 text-white shadow-lg sm:ml-[20%] sm:mr-[20%] sm:items-center sm:gap-3" href="https://wa.me/5492646238873" target="_blank" rel="noopener noreferrer">
+              <img src="/rocket.png" alt="rock" class="row-span-2 h-10 w-10 content-center m-auto" />     
+              <div class="row-span-2 flex-col sm:items-center gap-0.5">
+                <p class=" text-sm font-bold sm:text-lg">¿Tenes un comercio?</p>
+                <p class=" text-sm font-semibold sm:text-lg ">Sumate a AltoGO y hacé crecer tu negocio.</p>
+              </div>
+              <div class="row-span-2 rounded-full bg-white/20 p-3 m-auto"> 
+              ${Utils.icon('forward', 'h-5 w-5')}
+              </div>
+              </a>
+          </div>
+          <main class="mx-auto max-w-6xl px-4 pb-16 pt-5 sm:px-6 sm:pt-8">
           <!-- Hero compacto -->
           <section class="relative overflow-hidden rounded-2xl bg-[#00197D] px-6 py-8 text-white sm:px-10 sm:py-10">
             <div class="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-lime/15 blur-3xl"></div>
@@ -309,23 +320,23 @@ const Storefront = (() => {
               <p class="mt-3 max-w-lg text-sm leading-relaxed text-white/60">
                 Mirá lo que tiene cada comercio, armá tu pedido y enviá tu ubicación por WhatsApp.
               </p>
-              <form data-form="home-search" class="mt-5 flex max-w-xl items-center gap-1.5 rounded-2xl bg-white p-1.5 shadow-[0_18px_50px_-28px_rgba(0,0,0,.65)]">
+              <form data-form="home-search" class="mt-5 flex max-w-xl items-center gap-1.5 rounded-full bg-white p-1.5 shadow-[0_18px_50px_-28px_rgba(0,0,0,.65)]">
                 <label for="home-search" class="sr-only">Buscar comercio o categoría</label>
                 <span class="ml-2 hidden shrink-0 text-moss sm:block">${Utils.icon('search', 'h-4 w-4')}</span>
                 <input id="home-search" data-input="home-search" type="text" autocomplete="off"
                   placeholder="Buscar comercio o categoría…"
                   class="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-ink placeholder:text-moss/60 focus:outline-none" />
-                <button type="submit" class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-[#FF2F35] px-3.5 text-xs font-semibold text-white transition hover:bg-[#E3262C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:px-4 sm:text-sm">
+                <button type="submit" class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-[#FF2F35] px-3.5 text-xs font-semibold text-white transition hover:bg-[#E3262C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:px-4 sm:text-sm">
                   ${Utils.icon('search', 'h-4 w-4')} Buscar
                 </button>
               </form>
               <div class="mt-3 flex flex-wrap items-center gap-2">
-                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full  px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
                   <input type="checkbox" data-change="home-free" class="peer sr-only" />
                   <span class="relative h-5 w-9 shrink-0 rounded-full bg-white/25 transition peer-checked:bg-lime after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition after:content-[''] peer-checked:after:translate-x-4"></span>
                   <span>Envío gratis</span>
                 </label>
-                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full  px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
                   <input type="checkbox" data-change="home-open" class="peer sr-only" />
                   <span class="relative h-5 w-9 shrink-0 rounded-full bg-white/25 transition peer-checked:bg-lime after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition after:content-[''] peer-checked:after:translate-x-4"></span>
                   <span>Abiertos ahora</span>
@@ -336,10 +347,10 @@ const Storefront = (() => {
 
           <!-- Comercios -->
           <section id="comercios" class="mt-8 scroll-mt-24">
-            <div class="mb-4">
+            <div class="mb-4 border-l border-red/10 pl-4 sm:mb-6 sm:pl-3">
               <h2 class="font-display text-2xl font-semibold">Elegí un comercio</h2>
-              <p class="mt-1 text-xs text-moss">Toca una tarjeta para ver sus productos, precios y ofertas.</p>
             </div>
+            
             <div class="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
               ${businesses.map(card).join('')}
             </div>

@@ -228,7 +228,7 @@ const Store = (() => {
           business.bannerImages
             .map((image) => String(image || '').trim())
             .filter((image) => image.length <= 1000 && /^https?:\/\//i.test(image))
-        )).slice(0, 8)
+        )).slice(0, 1)
       : [];
     business.schedule = String(business.schedule || '').trim().slice(0, 120);
     business.minOrder = Math.max(0, Math.floor(Number(business.minOrder) || 0));

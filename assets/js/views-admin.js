@@ -717,7 +717,7 @@ const OwnerUI = (() => {
   const bannerImageRow = (url = '', index = 0) => `
     <div data-banner-image-row="" class="flex items-center gap-2">
       <input name="bannerUrl" value="${Utils.esc(url)}" maxlength="1000" placeholder="https://…"
-        class="${zoneInputCls} min-w-0 flex-1" aria-label="Imagen ${index + 1} del banner" />
+        class="${zoneInputCls} min-w-0 flex-1" aria-label="Imagen del banner" />
       <button type="button" data-action="banner-image-remove" aria-label="Quitar imagen del banner"
         class="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-rose-500 transition hover:bg-rose-50">
         ${Utils.icon('trash', 'h-4 w-4')}
@@ -731,8 +731,8 @@ const OwnerUI = (() => {
     if (!business) return;
     const mode = business.shippingMode || 'fixed';
     const zones = Array.isArray(business.shippingZones) ? business.shippingZones : [];
-    const bannerImages = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 8) : [];
-    const bannerRows = bannerImages.length ? bannerImages : [''];
+    const bannerImages = Array.isArray(business.bannerImages) ? business.bannerImages.slice(0, 1) : [];
+    const bannerRows = [bannerImages[0] || ''];
 
     Utils.openModal({
       title: 'Mi tienda',
@@ -753,14 +753,9 @@ const OwnerUI = (() => {
           </div>
 
           <section class="rounded-2xl border border-ink/10 bg-cream/50 p-4">
-            <div class="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <p class="${labelCls}">Banner de la tienda</p>
-                <p class="mt-1 text-[11px] leading-relaxed text-moss">Hasta 8 imágenes para mostrar ofertas o productos destacados. Se ven en un carrusel arriba del catálogo.</p>
-              </div>
-              <button type="button" data-action="banner-image-add" class="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white px-3 py-2 text-xs font-semibold text-ink transition hover:bg-[#F4F5F7]">
-                ${Utils.icon('plus', 'h-3.5 w-3.5')} Agregar imagen
-              </button>
+            <div>
+              <p class="${labelCls}">Banner de la tienda</p>
+              <p class="mt-1 text-[11px] leading-relaxed text-moss">Una sola imagen para mostrar ofertas o productos destacados. Se ve arriba del catálogo y en el inicio.</p>
             </div>
             <div id="banner-image-rows" class="mt-3 space-y-2">${bannerRows.map((image, index) => bannerImageRow(image, index)).join('')}</div>
             <p class="mt-2 text-[10px] leading-relaxed text-moss">Recomendado: imágenes horizontales de 1600 × 600 px (JPG, PNG o WebP).</p>
@@ -1163,18 +1158,6 @@ const OwnerUI = (() => {
     if (row) row.remove();
   });
 
-  Events.onAction('banner-image-add', () => {
-    const rows = document.getElementById('banner-image-rows');
-    if (!rows) return;
-    const count = rows.querySelectorAll('[data-banner-image-row]').length;
-    if (count >= 8) {
-      return Utils.toast('Puedes agregar hasta 8 imágenes al banner.', 'warning');
-    }
-    rows.insertAdjacentHTML('beforeend', bannerImageRow('', count));
-    const added = rows.querySelector('[data-banner-image-row]:last-child input[name="bannerUrl"]');
-    if (added) added.focus();
-  });
-
   Events.onAction('banner-image-remove', (el) => {
     const row = el.closest('[data-banner-image-row]');
     if (row) row.remove();
@@ -1272,13 +1255,14 @@ const OwnerUI = (() => {
     for (const rawBanner of data.getAll('bannerUrl')) {
       const banner = String(rawBanner || '').trim();
       if (!banner) continue;
+      if (bannerImages.length >= 1) return Utils.toast('Solo puedes usar una imagen de banner.', 'error');
       if (!isHttpUrl(banner)) return Utils.toast('Cada imagen del banner debe empezar con http:// o https://', 'error');
       if (banner.length > 1000) return Utils.toast('Una imagen del banner tiene una URL demasiado larga.', 'error');
       if (seenBanners.has(banner)) return Utils.toast('No repitas la misma imagen en el banner.', 'error');
       seenBanners.add(banner);
       bannerImages.push(banner);
     }
-    if (bannerImages.length > 8) return Utils.toast('Puedes agregar hasta 8 imágenes al banner.', 'error');
+    if (bannerImages.length > 1) return Utils.toast('Solo puedes usar una imagen de banner.', 'error');
 
     const shippingZones = [];
     const seenZones = [];
