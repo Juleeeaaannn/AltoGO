@@ -231,6 +231,7 @@ const Store = (() => {
         )).slice(0, 8)
       : [];
     business.schedule = String(business.schedule || '').trim().slice(0, 120);
+    business.minOrder = Math.max(0, Math.floor(Number(business.minOrder) || 0));
     return business;
   };
 
@@ -333,30 +334,34 @@ const Store = (() => {
     db.businesses.find((item) => item.slug === slug) || null;
 
   const deliveryInfo = (businessItem) => {
-    if (!businessItem) return { mode: 'fixed', amount: 0, zones: [], label: 'Envío gratis' };
+    if (!businessItem) return { mode: 'fixed', amount: 0, zones: [], label: 'Envío gratis', isFree: true };
     const mode = ['fixed', 'zones', 'whatsapp'].includes(businessItem.shippingMode)
       ? businessItem.shippingMode
       : 'fixed';
     const zones = Array.isArray(businessItem.shippingZones) ? businessItem.shippingZones : [];
 
     if (mode === 'whatsapp') {
-      return { mode, amount: null, zones, label: 'Delivery por WhatsApp' };
+      return { mode, amount: null, zones, label: 'Delivery por WhatsApp', isFree: false };
     }
     if (mode === 'zones') {
       const prices = zones.map((zone) => Number(zone.price) || 0);
       const min = prices.length ? Math.min(...prices) : 0;
+      const isFree = zones.length > 0 && prices.every((price) => price === 0);
       return {
         mode,
         amount: null,
         zones,
         min,
-        label: zones.length ? `Envío desde ${Utils.money(min)}` : 'Envío por zona'
+        isFree,
+        label: isFree ? 'Envío gratis' : zones.length ? `Envío desde ${Utils.money(min)}` : 'Envío por zona'
       };
     }
 
     const amount = Math.max(0, Number(businessItem.shippingCost) || 0);
-    return { mode, amount, zones, label: amount > 0 ? `Envío ${Utils.money(amount)}` : 'Envío gratis' };
+    return { mode, amount, zones, label: amount > 0 ? `Envío ${Utils.money(amount)}` : 'Envío gratis', isFree: amount === 0 };
   };
+
+  const minimumOrder = (businessItem) => Math.max(0, Math.floor(Number(businessItem?.minOrder) || 0));
 
   const deliveryLabel = (businessItem) => deliveryInfo(businessItem).label;
 
@@ -728,6 +733,7 @@ const Store = (() => {
         p_open: Boolean(data.open),
         p_tagline: data.tagline || '',
         p_schedule: data.schedule || '',
+        p_min_order: Math.max(0, Math.floor(Number(data.minOrder) || 0)),
         p_banner_images: Array.isArray(data.bannerImages) ? data.bannerImages : []
       });
       await refresh();
@@ -738,6 +744,7 @@ const Store = (() => {
     target.name = data.name;
     target.tagline = data.tagline || '';
     target.schedule = data.schedule || '';
+    target.minOrder = Math.max(0, Math.floor(Number(data.minOrder) || 0));
     target.whatsapp = data.whatsapp;
     target.shippingMode = data.shippingMode || 'fixed';
     target.shippingCost = Math.max(0, Number(data.shippingCost) || 0);
@@ -990,7 +997,7 @@ const Store = (() => {
   return {
     get data() { return db; },
     refresh, applySnapshot, loadView,
-    businesses, listedBusinesses, business, deliveryInfo, deliveryLabel,
+    businesses, listedBusinesses, business, deliveryInfo, deliveryLabel, minimumOrder,
     products, catalogProducts, categoriesOf, product, productCount, productCountOf,
     stock, discount, trackVisit, trackWhatsappClick, recordDemoOrder, loadProductAnalytics,
     findUser, userForBusiness, usernameTaken,

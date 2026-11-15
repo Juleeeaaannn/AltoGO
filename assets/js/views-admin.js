@@ -795,6 +795,11 @@ const OwnerUI = (() => {
                 <p class="text-[11px] leading-relaxed">El pedido se envía sin costo de envío. El comercio acuerda el delivery con el cliente por WhatsApp según su ubicación.</p>
               </div>
             </div>
+
+            <div class="mt-3">
+              ${field('Compra mínima del carrito (ARS)', `<input name="minOrder" type="number" min="0" step="1" class="${inputCls}" value="${business.minOrder || 0}" />`)}
+              <p class="mt-1 text-[11px] text-moss">Usa 0 si no quieres exigir un mínimo. El pedido no se podrá enviar hasta alcanzar este subtotal.</p>
+            </div>
           </section>
 
           <p class="text-[11px] leading-relaxed text-moss">La foto y el banner son opcionales. Si no agregas banner, el catálogo se muestra directamente. Si cierras el comercio, los clientes podrán ver el catálogo pero no enviar pedidos.</p>
@@ -1251,6 +1256,7 @@ const OwnerUI = (() => {
     const logo = String(data.get('logo') || '').trim();
     const tagline = String(data.get('tagline') || '').trim();
     const schedule = String(data.get('schedule') || '').trim();
+    const minOrder = Math.max(0, Math.floor(Number(data.get('minOrder')) || 0));
     const open = String(data.get('open') || 'open') === 'open';
     const bannerImages = [];
     const seenBanners = new Set();
@@ -1259,6 +1265,7 @@ const OwnerUI = (() => {
     if (whatsapp.length < 8) return Utils.toast('Captura un WhatsApp válido con código de país.', 'error');
     if (!['fixed', 'zones', 'whatsapp'].includes(shippingMode)) return Utils.toast('Elige una forma válida de cobrar el delivery.', 'error');
     if (!Number.isFinite(shippingCost) || shippingCost < 0) return Utils.toast('El precio del delivery no es válido.', 'error');
+    if (!Number.isFinite(minOrder) || minOrder < 0) return Utils.toast('La compra mínima no es válida.', 'error');
     if (!isHttpUrl(logo)) return Utils.toast('La URL de la foto debe empezar con http:// o https://', 'error');
     if (schedule.length > 120) return Utils.toast('El horario es demasiado largo.', 'error');
 
@@ -1293,7 +1300,7 @@ const OwnerUI = (() => {
 
     try {
       await Store.updateBusinessProfile(session.businessSlug, {
-        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, schedule, open, bannerImages
+        name, whatsapp, shippingMode, shippingCost, shippingZones, logo, tagline, schedule, minOrder, open, bannerImages
       });
       Utils.toast('Datos de la tienda actualizados.');
       Utils.closeModal();

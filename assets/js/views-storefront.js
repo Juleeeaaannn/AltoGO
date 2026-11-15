@@ -95,6 +95,8 @@ const Storefront = (() => {
     const status = Utils.openMeta(business.open);
     const schedule = String(business.schedule || '').trim();
     const productCount = Store.products(business.slug).length;
+    const delivery = Store.deliveryInfo(business);
+    const minimum = Store.minimumOrder(business);
     const [from, to] = hashTone(business.name);
 
     return `
@@ -132,7 +134,8 @@ const Storefront = (() => {
             ${schedule ? `<span class="inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">
               ${Utils.icon('clock', 'h-3.5 w-3.5 shrink-0')}<span class="truncate">${Utils.esc(schedule)}</span>
             </span>` : ''}
-            <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">${Utils.icon('bag', 'h-3.5 w-3.5')} ${Store.deliveryLabel(business)}</span>
+            <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 ring-1 backdrop-blur ${delivery.isFree ? 'bg-emerald-500 text-white ring-emerald-300/50' : 'bg-white/15 ring-white/20'}">${Utils.icon('bag', 'h-3.5 w-3.5')} ${delivery.label}</span>
+            ${minimum ? `<span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">${Utils.icon('bag', 'h-3.5 w-3.5')} Mínimo ${Utils.money(minimum)}</span>` : ''}
             <span class="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 ring-1 ring-white/20 backdrop-blur">${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
           </div>
 
@@ -170,31 +173,48 @@ const Storefront = (() => {
     const businesses = Store.listedBusinesses();
 
     const card = (business) => {
-      const productCount = Store.productCountOf(business);
       const status = Utils.openMeta(business.open);
       const schedule = String(business.schedule || '').trim();
+      const delivery = Store.deliveryInfo(business);
+      const minimum = Store.minimumOrder(business);
+      const categories = (Array.isArray(business.categories) && business.categories.length
+        ? business.categories
+        : Store.categoriesOf(business.slug)).filter(Boolean);
+      const shownCategories = categories.slice(0, 3);
       return `
         <a href="/negocio/${encodeURIComponent(business.slug)}"
-          class="group flex min-w-0 items-center gap-3 rounded-2xl border border-ink/5 bg-white p-3.5 transition duration-200 hover:border-ink/15 hover:shadow-[0_16px_35px_-26px_rgba(11,21,17,.5)] sm:gap-4 sm:p-4">
-          ${logoMark(business, 'h-12 w-12 sm:h-14 sm:w-14', 'text-sm sm:text-base')}
-          <div class="min-w-0 flex-1">
-            <div class="flex items-center gap-2">
-              <h3 class="truncate font-display text-[15px] font-semibold leading-tight sm:text-base">${Utils.esc(business.name)}</h3>
-            </div>
-            <p class="mt-0.5 truncate text-[11px] text-moss sm:text-xs">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
-            ${schedule ? `<p class="mt-1 flex items-center gap-1 truncate text-[10px] text-moss sm:text-[11px]">
-              ${Utils.icon('clock', 'h-3 w-3 shrink-0')}<span class="truncate">${Utils.esc(schedule)}</span>
-            </p>` : ''}
-            <div class="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] text-moss sm:text-[11px]">
-              <span>${productCount} ${productCount === 1 ? 'producto' : 'productos'}</span>
-              <span class="h-1 w-1 rounded-full bg-ink/15"></span>
-              <span>${Store.deliveryLabel(business)}</span>
+          class="group flex min-w-0 flex-col rounded-2xl border border-ink/5 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-[0_22px_45px_-30px_rgba(11,21,17,.55)] sm:p-5">
+          <div class="flex min-w-0 items-start gap-3">
+            ${logoMark(business, 'h-12 w-12 sm:h-14 sm:w-14', 'text-sm sm:text-base')}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-start justify-between gap-2">
+                <h3 class="truncate font-display text-[16px] font-semibold leading-tight sm:text-lg">${Utils.esc(business.name)}</h3>
+                <span class="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold ${status.cls}">${status.label}</span>
+              </div>
+              <p class="mt-1 line-clamp-2 text-[11px] leading-relaxed text-moss sm:text-xs">${Utils.esc(business.tagline || 'Productos a domicilio')}</p>
+              ${schedule ? `<p class="mt-1.5 flex items-center gap-1 truncate text-[10px] text-moss sm:text-[11px]">
+                ${Utils.icon('clock', 'h-3 w-3 shrink-0')}<span class="truncate">${Utils.esc(schedule)}</span>
+              </p>` : ''}
             </div>
           </div>
-          <div class="flex shrink-0 flex-col items-end gap-2">
-            <span class="rounded-full px-2.5 py-1 text-[10px] font-bold ${status.cls}">${status.label}</span>
-            <span class="grid h-8 w-8 place-items-center rounded-full bg-[#F4F5F7] text-ink transition group-hover:bg-lime">
-              ${Utils.icon('forward', 'h-3.5 w-3.5')}
+
+          ${shownCategories.length ? `<div class="mt-3">
+            <p class="text-[9px] font-semibold uppercase tracking-wider text-moss/60">Tiene</p>
+            <div class="mt-1 flex flex-wrap gap-1">
+              ${shownCategories.map((category) => `<span class="rounded-full bg-cream px-2 py-1 text-[10px] font-medium text-ink">${Utils.esc(category)}</span>`).join('')}
+              ${categories.length > shownCategories.length ? `<span class="rounded-full bg-cream px-2 py-1 text-[10px] font-medium text-moss">+${categories.length - shownCategories.length}</span>` : ''}
+            </div>
+          </div>` : ''}
+
+          <div class="mt-auto flex flex-wrap items-end justify-between gap-2 pt-3">
+            <div class="flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] font-medium">
+              <span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 ${delivery.isFree ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' : 'bg-[#F4F5F7] text-moss'}">
+                ${Utils.icon('bag', 'h-3 w-3')} ${delivery.label}
+              </span>
+              ${minimum ? `<span class="rounded-full bg-[#F4F5F7] px-2.5 py-1 text-moss">Mínimo ${Utils.money(minimum)}</span>` : ''}
+            </div>
+            <span class="inline-flex shrink-0 items-center gap-1 rounded-full bg-ink px-3 py-1.5 text-[10px] font-semibold text-white transition group-hover:bg-[#00197D]">
+              Ver catálogo ${Utils.icon('forward', 'h-3 w-3')}
             </span>
           </div>
         </a>`;
@@ -223,27 +243,24 @@ const Storefront = (() => {
             <div class="absolute -right-20 -top-24 h-64 w-64 rounded-full bg-lime/15 blur-3xl"></div>
             <div class="relative max-w-2xl">
               <h1 class="font-display text-3xl font-semibold leading-tight sm:text-5xl">
-                Tus productos favoritos, a un <span class="text-lime">WhatsApp</span>.
+                Elegí un comercio y pedí por <span class="text-lime">WhatsApp</span>.
               </h1>
               <p class="mt-3 max-w-lg text-sm leading-relaxed text-white/60">
-                Elige un comercio, arma tu pedido y envía tu ubicación por WhatsApp.
+                Mirá lo que tiene cada comercio, armá tu pedido y enviá tu ubicación por WhatsApp.
               </p>
-              <div class="mt-5 flex flex-wrap items-center gap-2 text-[11px]">
-                <span class="rounded-full bg-white/10 px-3 py-1.5">Envío local</span>
-              </div>
+              <a href="#comercios" class="mt-5 inline-flex items-center gap-2 rounded-full bg-lime px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-lime/90">
+                Ver comercios ${Utils.icon('down', 'h-4 w-4')}
+              </a>
             </div>
           </section>
 
           <!-- Comercios -->
           <section id="comercios" class="mt-8 scroll-mt-24">
-            <div class="mb-4 flex items-end justify-between gap-3">
-              <div>
-                <h2 class="font-display text-2xl font-semibold">Comercios disponibles</h2>
-                <p class="mt-1 text-xs text-moss">Toca un comercio para ver su catálogo completo.</p>
-              </div>
-              <span class="rounded-full bg-white px-3 py-1 text-[11px] font-medium text-moss ring-1 ring-ink/5">${businesses.length} en total</span>
+            <div class="mb-4">
+              <h2 class="font-display text-2xl font-semibold">Elegí un comercio</h2>
+              <p class="mt-1 text-xs text-moss">Toca una tarjeta para ver sus productos, precios y ofertas.</p>
             </div>
-            <div class="grid gap-2.5 sm:grid-cols-2 sm:gap-3 lg:grid-cols-3">
+            <div class="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
               ${businesses.map(card).join('')}
             </div>
           </section>
@@ -441,7 +458,7 @@ const Storefront = (() => {
     return `
       <div class="min-h-screen bg-white">
         <!-- Barra superior: "Atrás" siempre visible -->
-        <header id="catalog-header" class="catalog-header fixed inset-x-0 top-0 z-40  border-transparent">
+        <header id="catalog-header" class="catalog-header fixed inset-x-0 top-0 z-40">
           <div class="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
             <a href="/" class="inline-flex items-center gap-2 rounded-full border border-ink/10 bg-white py-1.5 pl-1.5 pr-3.5 text-xs font-semibold text-ink transition hover:border-ink/20 hover:bg-white">
               <span class="grid h-7 w-7 place-items-center rounded-full bg-cream">${Utils.icon('back', 'h-3.5 w-3.5')}</span>

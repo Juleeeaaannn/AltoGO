@@ -82,13 +82,18 @@ const Cart = (() => {
       : info.mode === 'zones'
         ? (zone ? Number(zone.price) || 0 : 0)
         : info.amount;
+    const minimum = Store.minimumOrder(business);
+    const missing = Math.max(0, minimum - subtotal);
     return {
       subtotal,
       shipping,
       total: subtotal + shipping,
       mode: info.mode,
       zone,
-      shippingKnown: info.mode !== 'zones' || Boolean(zone)
+      shippingKnown: info.mode !== 'zones' || Boolean(zone),
+      minimum,
+      missing,
+      meetsMinimum: missing === 0
     };
   };
 
@@ -288,6 +293,12 @@ const Cart = (() => {
     if (summary.mode === 'zones' && !summary.zone) {
       return { ok: false, message: 'Elige tu zona de entrega para continuar.' };
     }
+    if (summary.missing > 0) {
+      return {
+        ok: false,
+        message: `La compra mínima es ${Utils.money(summary.minimum)}. Faltan ${Utils.money(summary.missing)}.`
+      };
+    }
 
     const message = buildMessage(business);
     const url = waLink(business, message);
@@ -362,7 +373,7 @@ const Cart = (() => {
   const barHTML = () => {
     const business = currentBusiness();
     if (!business || context.ownerMode || !items.length) return '';
-    const { total, mode, shippingKnown } = totals();
+    const { total, mode, shippingKnown, missing } = totals();
     const totalLabel = mode === 'whatsapp'
       ? `${Utils.money(total)} + delivery`
       : !shippingKnown
@@ -379,7 +390,7 @@ const Cart = (() => {
         </span>
         <span class="min-w-0 flex-1">
           <span class="block text-[10px] uppercase tracking-wider text-white/50">Tu pedido</span>
-          <span class="block truncate text-sm font-semibold tabular">${count()} ${count() === 1 ? 'artículo' : 'artículos'} · ${totalLabel}</span>
+          <span class="block truncate text-sm font-semibold tabular">${count()} ${count() === 1 ? 'artículo' : 'artículos'} · ${totalLabel}${missing > 0 ? ` · faltan ${Utils.money(missing)}` : ''}</span>
         </span>
         <span class="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-lime text-ink">${Utils.icon('forward', 'h-4 w-4')}</span>
       </button>`;
@@ -422,7 +433,7 @@ const Cart = (() => {
     if (!isOpen) return '';
     const business = currentBusiness();
     if (!business) return '';
-    const { subtotal, shipping, total, mode, zone, shippingKnown } = totals();
+    const { subtotal, shipping, total, mode, zone, shippingKnown, minimum, missing } = totals();
     const zones = Store.deliveryInfo(business).zones;
 
     const body = items.length
@@ -507,12 +518,15 @@ const Cart = (() => {
           <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">${body}</div>
 
           <div class="shrink-0 border-t border-ink/5 bg-white px-5 pt-3" style="padding-bottom: calc(1rem + env(safe-area-inset-bottom));">
+            ${missing > 0 ? `<div class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-[11px] leading-relaxed text-amber-900">
+              <strong>Compra mínima: ${Utils.money(minimum)}.</strong> Agrega ${Utils.money(missing)} más para poder enviar el pedido.
+            </div>` : ''}
             <dl class="space-y-1 text-sm">
               <div class="flex justify-between text-moss"><dt>Subtotal</dt><dd class="tabular">${Utils.money(subtotal)}</dd></div>
-              <div class="flex justify-between text-moss"><dt>Envío</dt><dd class="tabular">${mode === 'whatsapp' ? 'A coordinar' : !shippingKnown ? 'Elige zona' : shipping > 0 ? Utils.money(shipping) : 'Gratis'}</dd></div>
+              <div class="flex justify-between text-moss"><dt>Envío</dt><dd class="tabular">${mode === 'whatsapp' ? 'A coordinar' : !shippingKnown ? 'Elige zona' : shipping > 0 ? Utils.money(shipping) : '<span class="font-semibold text-emerald-600">Envío gratis</span>'}</dd></div>
               <div class="flex justify-between gap-3 pt-1 text-base font-semibold"><dt>${mode === 'whatsapp' ? 'Total productos' : 'Total'}</dt><dd class="tabular text-right">${mode === 'whatsapp' ? Utils.money(subtotal) : !shippingKnown ? `${Utils.money(subtotal)} + envío` : Utils.money(total)}</dd></div>
             </dl>
-            <button type="submit" form="checkout-form" ${items.length ? '' : 'disabled'}
+            <button type="submit" form="checkout-form" ${items.length && !missing ? '' : 'disabled'}
               class="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#1FA855] px-4 py-3.5 text-sm font-semibold text-white transition hover:bg-[#188C46] disabled:opacity-40">
               ${Utils.icon('whatsapp', 'h-5 w-5')} Enviar pedido por WhatsApp
             </button>
