@@ -8,6 +8,7 @@
 const Storefront = (() => {
   /* Filtros activos del catálogo (se conservan al repintar por edición) */
   const CatalogState = { slug: null, query: '', category: 'Todas' };
+  const HomeState = { query: '', freeOnly: false, openOnly: false };
 
   const LOGO_TONES = [
     ['#132019', '#2F5E3F'],
@@ -23,6 +24,54 @@ const Storefront = (() => {
       hash = (hash * 31 + String(text).charCodeAt(i)) % 997;
     }
     return LOGO_TONES[hash % LOGO_TONES.length];
+  };
+
+  const businessCategories = (business) => (Array.isArray(business.categories) && business.categories.length
+    ? business.categories
+    : Store.categoriesOf(business.slug)).filter(Boolean);
+
+  const matchesHomeFilters = (business) => {
+    const query = Utils.normalize(HomeState.query);
+    if (query) {
+      const haystack = Utils.normalize([
+        business.name,
+        business.tagline || '',
+        ...businessCategories(business)
+      ].join(' '));
+      if (!haystack.includes(query)) return false;
+    }
+    if (HomeState.freeOnly && !Store.deliveryInfo(business).isFree) return false;
+    if (HomeState.openOnly && !business.open) return false;
+    return true;
+  };
+
+  const applyHomeFilters = (scrollToResults = false) => {
+    let visible = 0;
+    document.querySelectorAll('[data-home-card]').forEach((card) => {
+      const business = Store.business(card.dataset.slug);
+      const show = Boolean(business && matchesHomeFilters(business));
+      card.style.display = show ? '' : 'none';
+      if (show) visible += 1;
+    });
+
+    const empty = document.querySelector('[data-home-empty]');
+    if (empty) empty.style.display = visible ? 'none' : 'block';
+
+    if (scrollToResults) {
+      document.getElementById('comercios')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  const clearHomeFilters = () => {
+    HomeState.query = '';
+    HomeState.freeOnly = false;
+    HomeState.openOnly = false;
+    const input = document.getElementById('home-search');
+    if (input) input.value = '';
+    document.querySelectorAll('[data-change="home-free"], [data-change="home-open"]')
+      .forEach((el) => { el.checked = false; });
+    applyHomeFilters();
+    input?.focus();
   };
 
   /* Avatar del comercio: imagen si existe, si no iniciales sobre degradado. */
@@ -169,6 +218,9 @@ const Storefront = (() => {
   const home = () => {
     document.title = `${ALTOGO.brand.name} · ${ALTOGO.brand.tagline}`;
     Cart.detach();
+    HomeState.query = '';
+    HomeState.freeOnly = false;
+    HomeState.openOnly = false;
 
     const businesses = Store.listedBusinesses();
 
@@ -177,13 +229,21 @@ const Storefront = (() => {
       const schedule = String(business.schedule || '').trim();
       const delivery = Store.deliveryInfo(business);
       const minimum = Store.minimumOrder(business);
-      const categories = (Array.isArray(business.categories) && business.categories.length
-        ? business.categories
-        : Store.categoriesOf(business.slug)).filter(Boolean);
+      const categories = businessCategories(business);
       const shownCategories = categories.slice(0, 3);
+      const banner = Array.isArray(business.bannerImages)
+        ? business.bannerImages.find(Boolean)
+        : '';
       return `
         <a href="/negocio/${encodeURIComponent(business.slug)}"
-          class="group flex min-w-0 flex-col rounded-2xl border border-ink/5 bg-white p-4 transition duration-200 hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-[0_22px_45px_-30px_rgba(11,21,17,.55)] sm:p-5">
+          data-home-card data-slug="${Utils.esc(business.slug)}"
+          class="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-ink/5 bg-white transition duration-200 hover:-translate-y-0.5 hover:border-ink/15 hover:shadow-[0_22px_45px_-30px_rgba(11,21,17,.55)]">
+          ${banner ? `<div class="relative aspect-[16/7] w-full overflow-hidden bg-cream">
+            <img src="${Utils.esc(banner)}" alt="Banner de ${Utils.esc(business.name)}"
+              class="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" loading="lazy" decoding="async" />
+            <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink/20 via-transparent to-transparent"></div>
+          </div>` : ''}
+          <div class="flex flex-1 flex-col p-4 sm:p-5">
           <div class="flex min-w-0 items-start gap-3">
             ${logoMark(business, 'h-12 w-12 sm:h-14 sm:w-14', 'text-sm sm:text-base')}
             <div class="min-w-0 flex-1">
@@ -217,6 +277,7 @@ const Storefront = (() => {
               Ver catálogo ${Utils.icon('forward', 'h-3 w-3')}
             </span>
           </div>
+          </div>
         </a>`;
     };
 
@@ -248,9 +309,28 @@ const Storefront = (() => {
               <p class="mt-3 max-w-lg text-sm leading-relaxed text-white/60">
                 Mirá lo que tiene cada comercio, armá tu pedido y enviá tu ubicación por WhatsApp.
               </p>
-              <a href="#comercios" class="mt-5 inline-flex items-center gap-2 rounded-full bg-lime px-4 py-2.5 text-sm font-semibold text-ink transition hover:bg-lime/90">
-                Ver comercios ${Utils.icon('down', 'h-4 w-4')}
-              </a>
+              <form data-form="home-search" class="mt-5 flex max-w-xl items-center gap-1.5 rounded-2xl bg-white p-1.5 shadow-[0_18px_50px_-28px_rgba(0,0,0,.65)]">
+                <label for="home-search" class="sr-only">Buscar comercio o categoría</label>
+                <span class="ml-2 hidden shrink-0 text-moss sm:block">${Utils.icon('search', 'h-4 w-4')}</span>
+                <input id="home-search" data-input="home-search" type="text" autocomplete="off"
+                  placeholder="Buscar comercio o categoría…"
+                  class="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm text-ink placeholder:text-moss/60 focus:outline-none" />
+                <button type="submit" class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-[#FF2F35] px-3.5 text-xs font-semibold text-white transition hover:bg-[#E3262C] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:px-4 sm:text-sm">
+                  ${Utils.icon('search', 'h-4 w-4')} Buscar
+                </button>
+              </form>
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
+                  <input type="checkbox" data-change="home-free" class="peer sr-only" />
+                  <span class="relative h-5 w-9 shrink-0 rounded-full bg-white/25 transition peer-checked:bg-lime after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition after:content-[''] peer-checked:after:translate-x-4"></span>
+                  <span>Envío gratis</span>
+                </label>
+                <label class="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-2 text-[11px] font-medium text-white/90 transition hover:bg-white/15">
+                  <input type="checkbox" data-change="home-open" class="peer sr-only" />
+                  <span class="relative h-5 w-9 shrink-0 rounded-full bg-white/25 transition peer-checked:bg-lime after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition after:content-[''] peer-checked:after:translate-x-4"></span>
+                  <span>Abiertos ahora</span>
+                </label>
+              </div>
             </div>
           </section>
 
@@ -262,6 +342,13 @@ const Storefront = (() => {
             </div>
             <div class="grid items-stretch gap-3 sm:grid-cols-2 lg:grid-cols-3">
               ${businesses.map(card).join('')}
+            </div>
+            <div data-home-empty style="display:none" class="rounded-2xl border border-dashed border-ink/15 bg-cream/40 px-6 py-10 text-center">
+              <p class="font-display text-lg font-semibold">No encontramos comercios</p>
+              <p class="mt-1 text-xs text-moss">Probá con otro nombre, categoría o quitá los filtros.</p>
+              <button type="button" data-action="home-clear" class="mt-4 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#00197D]">
+                ${Utils.icon('close', 'h-3.5 w-3.5')} Limpiar búsqueda y filtros
+              </button>
             </div>
           </section>
         </main>
@@ -579,6 +666,28 @@ const Storefront = (() => {
   /* ------------------------------------------------------------------------
      Eventos de la vista pública
      ------------------------------------------------------------------------ */
+  Events.onInput('home-search', (el) => {
+    HomeState.query = el.value;
+    applyHomeFilters();
+  });
+
+  Events.onSubmit('home-search', (form) => {
+    HomeState.query = form.querySelector('#home-search')?.value || '';
+    applyHomeFilters(true);
+  });
+
+  Events.onChange('home-free', (el) => {
+    HomeState.freeOnly = el.checked;
+    applyHomeFilters();
+  });
+
+  Events.onChange('home-open', (el) => {
+    HomeState.openOnly = el.checked;
+    applyHomeFilters();
+  });
+
+  Events.onAction('home-clear', clearHomeFilters);
+
   Events.onInput('catalog-search', (el) => {
     CatalogState.query = el.value;
     refreshResults();
